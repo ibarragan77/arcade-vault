@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/lib/session";
 
-type NavSection = "biblioteca" | "salon" | "auth";
+type NavSection = "home" | "biblioteca" | "salon" | "about" | "auth";
 
 export default function Nav() {
   const pathname = usePathname();
@@ -14,8 +14,10 @@ export default function Nav() {
   const [open, setOpen] = useState(false);
 
   const isActive = (section: NavSection) => {
-    if (section === "biblioteca") return pathname === "/" || pathname.startsWith("/juegos");
+    if (section === "home") return pathname === "/";
+    if (section === "biblioteca") return pathname === "/games" || pathname.startsWith("/juegos");
     if (section === "salon") return pathname === "/salon";
+    if (section === "about") return pathname === "/about";
     return pathname === "/login";
   };
 
@@ -31,11 +33,17 @@ export default function Nav() {
           </div>
         </Link>
         <div className="links">
-          <Link href="/" className={isActive("biblioteca") ? "active" : ""}>
+          <Link href="/" className={isActive("home") ? "active" : ""}>
+            Inicio
+          </Link>
+          <Link href="/games" className={isActive("biblioteca") ? "active" : ""}>
             Biblioteca
           </Link>
           <Link href="/salon" className={isActive("salon") ? "active" : ""}>
             Salón de la Fama
+          </Link>
+          <Link href="/about" className={isActive("about") ? "active" : ""}>
+            Acerca de
           </Link>
         </div>
         <div className="spacer" />
@@ -62,11 +70,17 @@ export default function Nav() {
         <div className="pixel neon-cyan" style={{ fontSize: 11, marginBottom: 16 }}>
           MENÚ
         </div>
-        <Link href="/" className={isActive("biblioteca") ? "active" : ""} onClick={close}>
+        <Link href="/" className={isActive("home") ? "active" : ""} onClick={close}>
+          Inicio
+        </Link>
+        <Link href="/games" className={isActive("biblioteca") ? "active" : ""} onClick={close}>
           Biblioteca
         </Link>
         <Link href="/salon" className={isActive("salon") ? "active" : ""} onClick={close}>
           Salón de la Fama
+        </Link>
+        <Link href="/about" className={isActive("about") ? "active" : ""} onClick={close}>
+          Acerca de
         </Link>
         <Link href="/login" className={isActive("auth") ? "active" : ""} onClick={close}>
           {user ? "Cuenta" : "Iniciar Sesión"}
