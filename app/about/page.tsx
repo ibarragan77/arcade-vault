@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useReveal } from "@/lib/useReveal";
 
-type ContactForm = { name: string; email: string; msg: string };
+type ContactForm = { name: string; email: string; msg: string; company: string };
+type SubmitStatus = "idle" | "sending" | "sent" | "error";
 
 function HighlightIcon({ kind }: { kind: string }) {
   const C = "currentColor";
@@ -44,18 +45,35 @@ function HighlightIcon({ kind }: { kind: string }) {
 export default function AboutPage() {
   useReveal();
 
-  const [form, setForm] = useState<ContactForm>({ name: "", email: "", msg: "" });
-  const [sent, setSent] = useState<string | null>(null);
+  const [form, setForm] = useState<ContactForm>({ name: "", email: "", msg: "", company: "" });
+  const [status, setStatus] = useState<SubmitStatus>("idle");
+  const [sentName, setSentName] = useState("");
   const [shake, setShake] = useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim() || !form.msg.trim()) {
       setShake(true);
       setTimeout(() => setShake(false), 400);
       return;
     }
-    setSent(form.name.trim());
+
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setSentName(form.name.trim());
+        setStatus("sent");
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (
@@ -111,7 +129,7 @@ export default function AboutPage() {
           </div>
 
           <form className={"contact-form" + (shake ? " shake" : "")} onSubmit={onSubmit}>
-            {!sent ? (
+            {status === "idle" || status === "sending" ? (
               <>
                 <div className="field">
                   <label>NOMBRE</label>
@@ -125,9 +143,21 @@ export default function AboutPage() {
                   <label>MENSAJE</label>
                   <textarea rows={5} value={form.msg} onChange={(e) => setForm({ ...form, msg: e.target.value })} placeholder="Cuéntanos qué tienes en mente…"></textarea>
                 </div>
-                <button className="btn xl press" type="submit" style={{ width: "100%" }}>▶  ENVIAR MENSAJE</button>
+                <input
+                  type="text"
+                  name="company"
+                  value={form.company}
+                  onChange={(e) => setForm({ ...form, company: e.target.value })}
+                  style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                />
+                <button className="btn xl press" type="submit" style={{ width: "100%" }} disabled={status === "sending"}>
+                  {status === "sending" ? "ENVIANDO…" : "▶  ENVIAR MENSAJE"}
+                </button>
               </>
-            ) : (
+            ) : status === "sent" ? (
               <div className="terminal-success">
                 <div className="term-bar">
                   <span className="dot r"></span><span className="dot y"></span><span className="dot g"></span>
@@ -138,9 +168,25 @@ export default function AboutPage() {
                   <div className="line dim">[OK] Conectando con servidor…</div>
                   <div className="line dim">[OK] Validando contenido…</div>
                   <div className="line dim">[OK] Transmitiendo paquete…</div>
-                  <div className="line success">&gt; MENSAJE RECIBIDO. TE RESPONDEREMOS PRONTO. GRACIAS, {sent.toUpperCase()}.<span className="caret">_</span></div>
+                  <div className="line success">&gt; MENSAJE RECIBIDO. TE RESPONDEREMOS PRONTO. GRACIAS, {sentName.toUpperCase()}.<span className="caret">_</span></div>
                   <div style={{ marginTop: 18 }}>
-                    <button className="btn ghost" type="button" onClick={() => { setSent(null); setForm({ name: "", email: "", msg: "" }); }}>ENVIAR OTRO MENSAJE</button>
+                    <button className="btn ghost" type="button" onClick={() => { setStatus("idle"); setForm({ name: "", email: "", msg: "", company: "" }); }}>ENVIAR OTRO MENSAJE</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="terminal-success is-error">
+                <div className="term-bar">
+                  <span className="dot r"></span><span className="dot y"></span><span className="dot g"></span>
+                  <span className="term-title">VAULT-OS // TERMINAL</span>
+                </div>
+                <div className="term-body">
+                  <div className="line"><span className="prompt">vault@arcade:~$</span> ./send_message --to=team</div>
+                  <div className="line dim">[OK] Conectando con servidor…</div>
+                  <div className="line dim">[OK] Validando contenido…</div>
+                  <div className="line error">[ERROR] No se pudo transmitir el paquete.<span className="caret">_</span></div>
+                  <div style={{ marginTop: 18 }}>
+                    <button className="btn ghost" type="button" onClick={() => setStatus("idle")}>REINTENTAR</button>
                   </div>
                 </div>
               </div>
