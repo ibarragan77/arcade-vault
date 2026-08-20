@@ -1,6 +1,6 @@
 # SPEC 03 — Envío real de correo en el formulario de Acerca de (Resend)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 02
 > **Date:** 2026-08-19
 > **Objective:** Conectar el formulario de contacto de `/about` (ya implementado y simulado desde SPEC 02) a un envío real de correo electrónico usando Resend, a través de un Route Handler propio, sin modificar el diseño visual existente.
