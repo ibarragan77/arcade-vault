@@ -95,7 +95,7 @@ export default function GamePlayer({ game }: { game: Game }) {
           {isAsteroids ? (
             <AsteroidsGame
               key={resetKey}
-              paused={paused}
+              paused={paused || over}
               onScoreChange={setScore}
               onLivesChange={setLives}
               onLevelChange={setLevel}
