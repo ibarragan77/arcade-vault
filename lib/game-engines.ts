@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import AsteroidsGame from "@/components/games/asteroids/AsteroidsGame";
+import TetrisGame from "@/components/games/tetris/TetrisGame";
 
 export type GameEngineProps = {
   paused: boolean;
@@ -16,4 +17,5 @@ export type GameEngineEntry = {
 
 export const GAME_ENGINES: Record<string, GameEngineEntry> = {
   asteroides: { Component: AsteroidsGame, hasLives: true },
+  caida: { Component: TetrisGame, hasLives: false },
 };
