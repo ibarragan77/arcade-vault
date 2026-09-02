@@ -1,20 +1,48 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useReveal } from "@/lib/useReveal";
-import { GAMES, type Game } from "@/lib/data";
+import type { Game } from "@/lib/data";
+import { createClient } from "@/lib/supabase/client";
+import { getGames } from "@/lib/games";
 
-type Feature = { i: string; t: string; d: string; c: "cyan" | "yellow" | "magenta" | "green" };
+type Feature = {
+  i: string;
+  t: string;
+  d: string;
+  c: "cyan" | "yellow" | "magenta" | "green";
+};
 type StatBlock = { n: string; u: string; s: string };
 type TickerRow = { p: string; g: string; s: number; t: string; c: string };
 type TopPlayerRow = { r: number; p: string; s: number };
 type FaqItem = { q: string; a: string };
 
 const FEATURES: Feature[] = [
-  { i: "GAMEPAD", t: "JUEGOS CLÁSICOS", d: "Arkanoid, Tetris, Snake y muchos más. Los mejores arcades de todos los tiempos en un solo lugar.", c: "cyan" },
-  { i: "FREE", t: "100% GRATIS", d: "Sin suscripciones, sin pagos ocultos. Todos los juegos disponibles de forma gratuita.", c: "yellow" },
-  { i: "TROPHY", t: "LADDER BOARDS", d: "Compite con jugadores de todo el mundo. Escala el ranking y demuestra quién es el mejor.", c: "magenta" },
-  { i: "ROCKET", t: "SIEMPRE CRECIENDO", d: "Agregamos nuevos juegos constantemente. Vuelve seguido, siempre habrá algo nuevo que jugar.", c: "green" },
+  {
+    i: "GAMEPAD",
+    t: "JUEGOS CLÁSICOS",
+    d: "Arkanoid, Tetris, Snake y muchos más. Los mejores arcades de todos los tiempos en un solo lugar.",
+    c: "cyan",
+  },
+  {
+    i: "FREE",
+    t: "100% GRATIS",
+    d: "Sin suscripciones, sin pagos ocultos. Todos los juegos disponibles de forma gratuita.",
+    c: "yellow",
+  },
+  {
+    i: "TROPHY",
+    t: "LADDER BOARDS",
+    d: "Compite con jugadores de todo el mundo. Escala el ranking y demuestra quién es el mejor.",
+    c: "magenta",
+  },
+  {
+    i: "ROCKET",
+    t: "SIEMPRE CRECIENDO",
+    d: "Agregamos nuevos juegos constantemente. Vuelve seguido, siempre habrá algo nuevo que jugar.",
+    c: "green",
+  },
 ];
 
 const STATS: StatBlock[] = [
@@ -42,121 +70,200 @@ const TOP_PLAYERS: TopPlayerRow[] = [
 ];
 
 const FAQS: FaqItem[] = [
-  { q: "¿REALMENTE ES GRATIS?", a: "Sí. Arcade Vault es un proyecto sin fines de lucro hecho por amor a los clásicos. No hay versión \"premium\" escondida." },
-  { q: "¿NECESITO CREAR CUENTA?", a: "No. Puedes jugar como invitado. Si quieres guardar tu puntuación y aparecer en el ranking, regístrate en 10 segundos." },
-  { q: "¿CÓMO SOBREVIVEN SIN COBRAR?", a: "Es un proyecto comunitario. Si te gusta, compártelo. Esa es toda la moneda que aceptamos." },
+  {
+    q: "¿REALMENTE ES GRATIS?",
+    a: 'Sí. Arcade Vault es un proyecto sin fines de lucro hecho por amor a los clásicos. No hay versión "premium" escondida.',
+  },
+  {
+    q: "¿NECESITO CREAR CUENTA?",
+    a: "No. Puedes jugar como invitado. Si quieres guardar tu puntuación y aparecer en el ranking, regístrate en 10 segundos.",
+  },
+  {
+    q: "¿CÓMO SOBREVIVEN SIN COBRAR?",
+    a: "Es un proyecto comunitario. Si te gusta, compártelo. Esa es toda la moneda que aceptamos.",
+  },
 ];
 
 function FloatingSilhouettes() {
   return (
     <div className="home-silos" aria-hidden="true">
-      <svg className="silo s1" viewBox="0 0 40 32"><g fill="#00f5ff">
-        <rect x="6" y="4" width="4" height="4"/><rect x="30" y="4" width="4" height="4"/>
-        <rect x="2" y="8" width="36" height="4"/>
-        <rect x="2" y="12" width="4" height="4"/><rect x="14" y="12" width="4" height="4"/><rect x="22" y="12" width="4" height="4"/><rect x="34" y="12" width="4" height="4"/>
-        <rect x="2" y="16" width="36" height="4"/>
-        <rect x="6" y="20" width="4" height="4"/><rect x="30" y="20" width="4" height="4"/>
-      </g></svg>
-      <svg className="silo s2" viewBox="0 0 32 32"><g fill="#ff006e">
-        <rect x="8" y="0" width="16" height="4"/>
-        <rect x="4" y="4" width="24" height="4"/>
-        <rect x="0" y="8" width="32" height="12"/>
-        <rect x="0" y="20" width="6" height="6"/><rect x="10" y="20" width="4" height="6"/><rect x="18" y="20" width="4" height="6"/><rect x="26" y="20" width="6" height="6"/>
-      </g></svg>
-      <svg className="silo s3" viewBox="0 0 32 32"><g fill="#f5ff00">
-        <rect x="10" y="0" width="12" height="4"/>
-        <rect x="6" y="4" width="20" height="4"/>
-        <rect x="4" y="8" width="6" height="6"/><rect x="22" y="8" width="6" height="6"/>
-        <rect x="2" y="14" width="28" height="10"/>
-        <rect x="6" y="24" width="4" height="4"/><rect x="14" y="24" width="4" height="4"/><rect x="22" y="24" width="4" height="4"/>
-      </g></svg>
-      <svg className="silo s4" viewBox="0 0 24 24"><g fill="#00ff88">
-        <rect x="10" y="0" width="4" height="24"/>
-        <rect x="0" y="10" width="24" height="4"/>
-        <rect x="6" y="6" width="12" height="12" fill="none" stroke="#00ff88" strokeWidth="2"/>
-      </g></svg>
-      <svg className="silo s5" viewBox="0 0 36 24"><g fill="#aa00ff">
-        <rect x="14" y="2" width="8" height="4"/>
-        <rect x="10" y="6" width="16" height="4"/>
-        <rect x="4" y="10" width="28" height="4"/>
-        <rect x="0" y="14" width="36" height="4"/>
-        <rect x="6" y="18" width="4" height="2"/><rect x="16" y="18" width="4" height="2"/><rect x="26" y="18" width="4" height="2"/>
-      </g></svg>
-      <svg className="silo s6" viewBox="0 0 20 20"><g fill="#ffcf3a">
-        <rect x="6" y="0" width="8" height="2"/>
-        <rect x="2" y="2" width="16" height="2"/>
-        <rect x="0" y="4" width="20" height="12"/>
-        <rect x="2" y="16" width="16" height="2"/>
-        <rect x="6" y="18" width="8" height="2"/>
-        <rect x="8" y="4" width="4" height="12" fill="#0a0a0f"/>
-      </g></svg>
-      <svg className="silo s7" viewBox="0 0 24 22"><g fill="#ff3060">
-        <rect x="2" y="2" width="6" height="2"/><rect x="16" y="2" width="6" height="2"/>
-        <rect x="0" y="4" width="10" height="4"/><rect x="14" y="4" width="10" height="4"/>
-        <rect x="0" y="8" width="24" height="4"/>
-        <rect x="2" y="12" width="20" height="2"/>
-        <rect x="4" y="14" width="16" height="2"/>
-        <rect x="6" y="16" width="12" height="2"/>
-        <rect x="8" y="18" width="8" height="2"/>
-        <rect x="10" y="20" width="4" height="2"/>
-      </g></svg>
-      <svg className="silo s8" viewBox="0 0 24 24"><g fill="#00d4ff">
-        <rect x="8" y="2" width="8" height="6"/>
-        <rect x="2" y="8" width="20" height="8"/>
-        <rect x="8" y="16" width="8" height="6"/>
-        <rect x="11" y="6" width="2" height="2" fill="#0a0a0f"/>
-        <rect x="11" y="16" width="2" height="2" fill="#0a0a0f"/>
-        <rect x="4" y="11" width="2" height="2" fill="#0a0a0f"/>
-        <rect x="18" y="11" width="2" height="2" fill="#0a0a0f"/>
-      </g></svg>
+      <svg className="silo s1" viewBox="0 0 40 32">
+        <g fill="#00f5ff">
+          <rect x="6" y="4" width="4" height="4" />
+          <rect x="30" y="4" width="4" height="4" />
+          <rect x="2" y="8" width="36" height="4" />
+          <rect x="2" y="12" width="4" height="4" />
+          <rect x="14" y="12" width="4" height="4" />
+          <rect x="22" y="12" width="4" height="4" />
+          <rect x="34" y="12" width="4" height="4" />
+          <rect x="2" y="16" width="36" height="4" />
+          <rect x="6" y="20" width="4" height="4" />
+          <rect x="30" y="20" width="4" height="4" />
+        </g>
+      </svg>
+      <svg className="silo s2" viewBox="0 0 32 32">
+        <g fill="#ff006e">
+          <rect x="8" y="0" width="16" height="4" />
+          <rect x="4" y="4" width="24" height="4" />
+          <rect x="0" y="8" width="32" height="12" />
+          <rect x="0" y="20" width="6" height="6" />
+          <rect x="10" y="20" width="4" height="6" />
+          <rect x="18" y="20" width="4" height="6" />
+          <rect x="26" y="20" width="6" height="6" />
+        </g>
+      </svg>
+      <svg className="silo s3" viewBox="0 0 32 32">
+        <g fill="#f5ff00">
+          <rect x="10" y="0" width="12" height="4" />
+          <rect x="6" y="4" width="20" height="4" />
+          <rect x="4" y="8" width="6" height="6" />
+          <rect x="22" y="8" width="6" height="6" />
+          <rect x="2" y="14" width="28" height="10" />
+          <rect x="6" y="24" width="4" height="4" />
+          <rect x="14" y="24" width="4" height="4" />
+          <rect x="22" y="24" width="4" height="4" />
+        </g>
+      </svg>
+      <svg className="silo s4" viewBox="0 0 24 24">
+        <g fill="#00ff88">
+          <rect x="10" y="0" width="4" height="24" />
+          <rect x="0" y="10" width="24" height="4" />
+          <rect
+            x="6"
+            y="6"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="#00ff88"
+            strokeWidth="2"
+          />
+        </g>
+      </svg>
+      <svg className="silo s5" viewBox="0 0 36 24">
+        <g fill="#aa00ff">
+          <rect x="14" y="2" width="8" height="4" />
+          <rect x="10" y="6" width="16" height="4" />
+          <rect x="4" y="10" width="28" height="4" />
+          <rect x="0" y="14" width="36" height="4" />
+          <rect x="6" y="18" width="4" height="2" />
+          <rect x="16" y="18" width="4" height="2" />
+          <rect x="26" y="18" width="4" height="2" />
+        </g>
+      </svg>
+      <svg className="silo s6" viewBox="0 0 20 20">
+        <g fill="#ffcf3a">
+          <rect x="6" y="0" width="8" height="2" />
+          <rect x="2" y="2" width="16" height="2" />
+          <rect x="0" y="4" width="20" height="12" />
+          <rect x="2" y="16" width="16" height="2" />
+          <rect x="6" y="18" width="8" height="2" />
+          <rect x="8" y="4" width="4" height="12" fill="#0a0a0f" />
+        </g>
+      </svg>
+      <svg className="silo s7" viewBox="0 0 24 22">
+        <g fill="#ff3060">
+          <rect x="2" y="2" width="6" height="2" />
+          <rect x="16" y="2" width="6" height="2" />
+          <rect x="0" y="4" width="10" height="4" />
+          <rect x="14" y="4" width="10" height="4" />
+          <rect x="0" y="8" width="24" height="4" />
+          <rect x="2" y="12" width="20" height="2" />
+          <rect x="4" y="14" width="16" height="2" />
+          <rect x="6" y="16" width="12" height="2" />
+          <rect x="8" y="18" width="8" height="2" />
+          <rect x="10" y="20" width="4" height="2" />
+        </g>
+      </svg>
+      <svg className="silo s8" viewBox="0 0 24 24">
+        <g fill="#00d4ff">
+          <rect x="8" y="2" width="8" height="6" />
+          <rect x="2" y="8" width="20" height="8" />
+          <rect x="8" y="16" width="8" height="6" />
+          <rect x="11" y="6" width="2" height="2" fill="#0a0a0f" />
+          <rect x="11" y="16" width="2" height="2" fill="#0a0a0f" />
+          <rect x="4" y="11" width="2" height="2" fill="#0a0a0f" />
+          <rect x="18" y="11" width="2" height="2" fill="#0a0a0f" />
+        </g>
+      </svg>
     </div>
   );
 }
 
 function FeatureIcon({ kind }: { kind: string }) {
   const C = "currentColor";
-  if (kind === "GAMEPAD") return (
-    <svg className="ft-icon" viewBox="0 0 16 16"><g fill={C}>
-      <rect x="2" y="6" width="12" height="6"/>
-      <rect x="0" y="8" width="2" height="4"/><rect x="14" y="8" width="2" height="4"/>
-      <rect x="3" y="8" width="2" height="2"/><rect x="2" y="9" width="4" height="0.5"/>
-      <rect x="11" y="7" width="1.5" height="1.5"/><rect x="11" y="10" width="1.5" height="1.5"/>
-    </g></svg>
-  );
-  if (kind === "FREE") return (
-    <svg className="ft-icon" viewBox="0 0 16 16"><g fill={C}>
-      <rect x="3" y="3" width="10" height="10" fill="none" stroke={C} strokeWidth="1.5"/>
-      <rect x="5" y="6" width="1.5" height="4"/><rect x="5" y="6" width="4" height="1.5"/><rect x="5" y="8" width="3" height="1"/>
-      <rect x="10" y="6" width="1.5" height="4"/>
-    </g></svg>
-  );
-  if (kind === "TROPHY") return (
-    <svg className="ft-icon" viewBox="0 0 16 16"><g fill={C}>
-      <rect x="3" y="2" width="10" height="2"/>
-      <rect x="3" y="2" width="2" height="6"/><rect x="11" y="2" width="2" height="6"/>
-      <rect x="5" y="8" width="6" height="2"/>
-      <rect x="7" y="10" width="2" height="3"/>
-      <rect x="5" y="13" width="6" height="1.5"/>
-      <rect x="1" y="3" width="2" height="3"/><rect x="13" y="3" width="2" height="3"/>
-    </g></svg>
-  );
-  if (kind === "ROCKET") return (
-    <svg className="ft-icon" viewBox="0 0 16 16"><g fill={C}>
-      <rect x="7" y="1" width="2" height="2"/>
-      <rect x="6" y="3" width="4" height="2"/>
-      <rect x="5" y="5" width="6" height="6"/>
-      <rect x="4" y="11" width="2" height="2"/><rect x="10" y="11" width="2" height="2"/>
-      <rect x="7" y="6" width="2" height="2" fill="#0a0a0f"/>
-      <rect x="6" y="13" width="1" height="2"/><rect x="9" y="13" width="1" height="2"/>
-    </g></svg>
-  );
+  if (kind === "GAMEPAD")
+    return (
+      <svg className="ft-icon" viewBox="0 0 16 16">
+        <g fill={C}>
+          <rect x="2" y="6" width="12" height="6" />
+          <rect x="0" y="8" width="2" height="4" />
+          <rect x="14" y="8" width="2" height="4" />
+          <rect x="3" y="8" width="2" height="2" />
+          <rect x="2" y="9" width="4" height="0.5" />
+          <rect x="11" y="7" width="1.5" height="1.5" />
+          <rect x="11" y="10" width="1.5" height="1.5" />
+        </g>
+      </svg>
+    );
+  if (kind === "FREE")
+    return (
+      <svg className="ft-icon" viewBox="0 0 16 16">
+        <g fill={C}>
+          <rect
+            x="3"
+            y="3"
+            width="10"
+            height="10"
+            fill="none"
+            stroke={C}
+            strokeWidth="1.5"
+          />
+          <rect x="5" y="6" width="1.5" height="4" />
+          <rect x="5" y="6" width="4" height="1.5" />
+          <rect x="5" y="8" width="3" height="1" />
+          <rect x="10" y="6" width="1.5" height="4" />
+        </g>
+      </svg>
+    );
+  if (kind === "TROPHY")
+    return (
+      <svg className="ft-icon" viewBox="0 0 16 16">
+        <g fill={C}>
+          <rect x="3" y="2" width="10" height="2" />
+          <rect x="3" y="2" width="2" height="6" />
+          <rect x="11" y="2" width="2" height="6" />
+          <rect x="5" y="8" width="6" height="2" />
+          <rect x="7" y="10" width="2" height="3" />
+          <rect x="5" y="13" width="6" height="1.5" />
+          <rect x="1" y="3" width="2" height="3" />
+          <rect x="13" y="3" width="2" height="3" />
+        </g>
+      </svg>
+    );
+  if (kind === "ROCKET")
+    return (
+      <svg className="ft-icon" viewBox="0 0 16 16">
+        <g fill={C}>
+          <rect x="7" y="1" width="2" height="2" />
+          <rect x="6" y="3" width="4" height="2" />
+          <rect x="5" y="5" width="6" height="6" />
+          <rect x="4" y="11" width="2" height="2" />
+          <rect x="10" y="11" width="2" height="2" />
+          <rect x="7" y="6" width="2" height="2" fill="#0a0a0f" />
+          <rect x="6" y="13" width="1" height="2" />
+          <rect x="9" y="13" width="1" height="2" />
+        </g>
+      </svg>
+    );
   return null;
 }
 
 function MiniCard({ game, onClick }: { game: Game; onClick: () => void }) {
   return (
     <div className="mini-card" onClick={onClick}>
-      <div className="mini-cover"><div className={"cover-bg " + game.cover}></div></div>
+      <div className="mini-cover">
+        <div className={"cover-bg " + game.cover}></div>
+      </div>
       <div className="mini-meta">
         <div className="mini-title">{game.title}</div>
         <div className="mini-cat">{game.cat}</div>
@@ -168,6 +275,14 @@ function MiniCard({ game, onClick }: { game: Game; onClick: () => void }) {
 export default function HomePage() {
   useReveal();
   const router = useRouter();
+  const [previewGames, setPreviewGames] = useState<Game[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    getGames(supabase)
+      .then((games) => setPreviewGames(games.slice(0, 6)))
+      .catch(() => setPreviewGames([]));
+  }, []);
 
   return (
     <div className="home fade-in">
@@ -175,19 +290,32 @@ export default function HomePage() {
       <section className="home-hero">
         <FloatingSilhouettes />
         <div className="home-hero-inner">
-          <div className="hero-eyebrow pixel neon-yellow">▸ INSERTA UNA MONEDA<span className="blink">_</span></div>
+          <div className="hero-eyebrow pixel neon-yellow">
+            ▸ INSERTA UNA MONEDA<span className="blink">_</span>
+          </div>
           <h1 className="home-title">
             <span className="line-1">EL ARCADE</span>
             <span className="line-2">CLÁSICO ESTÁ</span>
             <span className="line-3">DE VUELTA</span>
           </h1>
           <p className="home-sub">
-            Juega los mejores clásicos directamente en tu navegador.<br/>
+            Juega los mejores clásicos directamente en tu navegador.
+            <br />
             Sin descargas. Sin costo. Solo diversión.
           </p>
           <div className="home-ctas">
-            <button className="btn xl pulse" onClick={() => router.push("/games")}>▶  EXPLORAR JUEGOS</button>
-            <button className="btn xl magenta" onClick={() => router.push("/login")}>✦  CREAR CUENTA</button>
+            <button
+              className="btn xl pulse"
+              onClick={() => router.push("/games")}
+            >
+              ▶ EXPLORAR JUEGOS
+            </button>
+            <button
+              className="btn xl magenta"
+              onClick={() => router.push("/login")}
+            >
+              ✦ CREAR CUENTA
+            </button>
           </div>
           <div className="hero-scroll" aria-hidden="true">
             <span>DESLIZA</span>
@@ -205,7 +333,11 @@ export default function HomePage() {
         </div>
         <div className="feature-grid">
           {FEATURES.map((f, i) => (
-            <div key={i} className={"feature-card " + f.c} style={{ transitionDelay: (i * 80) + "ms" }}>
+            <div
+              key={i}
+              className={"feature-card " + f.c}
+              style={{ transitionDelay: i * 80 + "ms" }}
+            >
               <FeatureIcon kind={f.i} />
               <div className="ft-title pixel">{f.t}</div>
               <div className="ft-desc">{f.d}</div>
@@ -222,12 +354,18 @@ export default function HomePage() {
           <div className="section-rule"></div>
         </div>
         <div className="mini-rail">
-          {GAMES.slice(0, 6).map((g) => (
-            <MiniCard key={g.id} game={g} onClick={() => router.push(`/juegos/${g.id}`)} />
+          {previewGames.map((g) => (
+            <MiniCard
+              key={g.id}
+              game={g}
+              onClick={() => router.push(`/juegos/${g.id}`)}
+            />
           ))}
         </div>
         <div style={{ textAlign: "center", marginTop: 24 }}>
-          <button className="btn lg" onClick={() => router.push("/games")}>VER TODOS LOS JUEGOS →</button>
+          <button className="btn lg" onClick={() => router.push("/games")}>
+            VER TODOS LOS JUEGOS →
+          </button>
         </div>
       </section>
 
@@ -235,7 +373,11 @@ export default function HomePage() {
       <section className="home-stats reveal">
         <div className="stats-inner">
           {STATS.map((st, i) => (
-            <div key={i} className="stat-block" style={{ transitionDelay: (i * 90) + "ms" }}>
+            <div
+              key={i}
+              className="stat-block"
+              style={{ transitionDelay: i * 90 + "ms" }}
+            >
               <div className="stat-n neon-yellow">{st.n}</div>
               <div className="stat-u pixel">{st.u}</div>
               <div className="stat-s">{st.s}</div>
@@ -258,7 +400,11 @@ export default function HomePage() {
             </div>
             <div className="ticker">
               {TICKER.map((r, i) => (
-                <div key={i} className="tick-row" style={{ animationDelay: (i * 60) + "ms" }}>
+                <div
+                  key={i}
+                  className="tick-row"
+                  style={{ animationDelay: i * 60 + "ms" }}
+                >
                   <span className={"tk-p neon-" + r.c}>{r.p}</span>
                   <span className="tk-mid">▸ {r.g}</span>
                   <span className="tk-s">+{r.s.toLocaleString("es-ES")}</span>
@@ -270,14 +416,35 @@ export default function HomePage() {
 
           <div className="activity-card">
             <div className="ac-head">
-              <div className="ac-title pixel neon-magenta">▸ TOP JUGADORES · HOY</div>
-              <button className="lb-link" onClick={() => router.push("/salon")}>VER SALÓN →</button>
+              <div className="ac-title pixel neon-magenta">
+                ▸ TOP JUGADORES · HOY
+              </div>
+              <button className="lb-link" onClick={() => router.push("/salon")}>
+                VER SALÓN →
+              </button>
             </div>
             <div className="top-list">
               {TOP_PLAYERS.map((r, i) => (
-                <div key={i} className={"top-row" + (i === 0 ? " top1" : i === 1 ? " top2" : i === 2 ? " top3" : "")}>
+                <div
+                  key={i}
+                  className={
+                    "top-row" +
+                    (i === 0
+                      ? " top1"
+                      : i === 1
+                        ? " top2"
+                        : i === 2
+                          ? " top3"
+                          : "")
+                  }
+                >
                   <span className="tp-rk">#{String(r.r).padStart(2, "0")}</span>
-                  <span className="tp-bar"><span className="tp-fill" style={{ width: (100 - i * 16) + "%" }}></span></span>
+                  <span className="tp-bar">
+                    <span
+                      className="tp-fill"
+                      style={{ width: 100 - i * 16 + "%" }}
+                    ></span>
+                  </span>
                   <span className="tp-p">{r.p}</span>
                   <span className="tp-s">{r.s.toLocaleString("es-ES")}</span>
                 </div>
@@ -311,9 +478,19 @@ export default function HomePage() {
               <li>✔ Nuevos juegos cada mes</li>
               <li>✔ Funciona en cualquier navegador</li>
             </ul>
-            <button className="btn xl pulse" style={{ width: "100%" }} onClick={() => router.push("/login")}>EMPEZAR GRATIS →</button>
+            <button
+              className="btn xl pulse"
+              style={{ width: "100%" }}
+              onClick={() => router.push("/login")}
+            >
+              EMPEZAR GRATIS →
+            </button>
             <div className="pc-foot">No pedimos tarjeta. Nunca lo haremos.</div>
-            <div className="pc-stamp pixel">FREE<br/>PLAY</div>
+            <div className="pc-stamp pixel">
+              FREE
+              <br />
+              PLAY
+            </div>
           </div>
 
           <div className="pricing-faq">
@@ -330,8 +507,15 @@ export default function HomePage() {
       {/* FINAL CTA */}
       <section className="home-final reveal">
         <h2 className="final-title pixel">¿LISTO PARA JUGAR?</h2>
-        <button className="btn xl pulse final-cta" onClick={() => router.push("/games")}>INSERTAR MONEDA →</button>
-        <div className="final-tag">Gratis. Sin registro obligatorio. Empieza en segundos.</div>
+        <button
+          className="btn xl pulse final-cta"
+          onClick={() => router.push("/games")}
+        >
+          INSERTAR MONEDA →
+        </button>
+        <div className="final-tag">
+          Gratis. Sin registro obligatorio. Empieza en segundos.
+        </div>
       </section>
     </div>
   );
