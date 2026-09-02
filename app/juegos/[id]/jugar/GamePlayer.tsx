@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Game } from "@/lib/data";
 import { useSession } from "@/lib/session";
+import { createClient } from "@/lib/supabase/client";
 import { saveScore } from "@/lib/scores";
 import AsteroidsGame from "@/components/games/asteroids/AsteroidsGame";
 
@@ -19,6 +20,7 @@ export default function GamePlayer({ game }: { game: Game }) {
   const [over, setOver] = useState(false);
   const [name, setName] = useState("INVITADO");
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     if (user) queueMicrotask(() => setName(user.name));
@@ -48,7 +50,19 @@ export default function GamePlayer({ game }: { game: Game }) {
     setPaused(false);
     setOver(false);
     setSaved(false);
+    setSaveError(false);
     if (isAsteroids) setResetKey((k) => k + 1);
+  };
+
+  const handleSaveScore = async () => {
+    setSaveError(false);
+    try {
+      const supabase = createClient();
+      await saveScore(supabase, { game: game.id, score, name });
+      setSaved(true);
+    } catch {
+      setSaveError(true);
+    }
   };
 
   return (
@@ -156,15 +170,17 @@ export default function GamePlayer({ game }: { game: Game }) {
                   }
                   placeholder="TUS INICIALES"
                 />
-                <button
-                  className="btn yellow"
-                  onClick={() => {
-                    saveScore({ game: game.id, score, name });
-                    setSaved(true);
-                  }}
-                >
+                <button className="btn yellow" onClick={handleSaveScore}>
                   GUARDAR PUNTUACIÓN
                 </button>
+                {saveError && (
+                  <div
+                    className="toast-saved"
+                    style={{ color: "var(--magenta)" }}
+                  >
+                    ▸ NO SE PUDO GUARDAR, REINTENTA_
+                  </div>
+                )}
               </div>
             ) : (
               <div className="toast-saved">▸ PUNTUACIÓN GUARDADA_</div>
