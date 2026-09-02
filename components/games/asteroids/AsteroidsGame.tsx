@@ -1,14 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { GameEngineProps } from "@/lib/game-engines";
 
-type AsteroidsGameProps = {
-  paused: boolean;
-  onScoreChange: (score: number) => void;
-  onLivesChange: (lives: number) => void;
-  onLevelChange: (level: number) => void;
-  onGameOver: (finalScore: number) => void;
-};
+type AsteroidsGameProps = GameEngineProps;
 
 const W = 800;
 const H = 600;
@@ -408,7 +403,7 @@ export default function AsteroidsGame({
 
     function nextLevel() {
       level++;
-      onLevelChange(level);
+      onLevelChange?.(level);
       bullets = [];
       particles = [];
       powerUps = [];
@@ -426,7 +421,7 @@ export default function AsteroidsGame({
       explode(ship.x, ship.y, 14);
       ship.dead = true;
       lives--;
-      onLivesChange(lives);
+      onLivesChange?.(lives);
       if (lives <= 0) {
         onGameOver(score);
         stopped = true;
