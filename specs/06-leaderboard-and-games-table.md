@@ -1,6 +1,6 @@
 # SPEC 06 — Leaderboard y catálogo de juegos reales en Supabase
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 04
 > **Date:** 2026-09-01
 > **Objective:** Reemplazar el catálogo de juegos hardcodeado (`GAMES` en `lib/data.ts`) y el leaderboard 100% simulado (`seededScores()`, `lib/scores.ts` en `localStorage`) por dos tablas reales en Supabase (`games` y `scores`), leídas y escritas desde `/games`, `/juegos/[id]`, `/juegos/[id]/jugar` y `/salon`.
