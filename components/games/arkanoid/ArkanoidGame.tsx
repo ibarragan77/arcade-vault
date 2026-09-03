@@ -199,18 +199,26 @@ type Explosion = {
 
 type GameState = "playing" | "gameover";
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+function loadImage(
+  src: string,
+  onCreated: (img: HTMLImageElement) => void,
+): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    onCreated(img);
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
   });
 }
 
-function loadAudio(src: string): Promise<HTMLAudioElement> {
+function loadAudio(
+  src: string,
+  onCreated: (audio: HTMLAudioElement) => void,
+): Promise<HTMLAudioElement> {
   return new Promise((resolve, reject) => {
     const audio = new Audio();
+    onCreated(audio);
     audio.oncanplaythrough = () => resolve(audio);
     audio.onerror = reject;
     audio.src = src;
@@ -242,6 +250,8 @@ export default function ArkanoidGame({
     let cancelled = false;
     let rafId: number;
     let stopped = false;
+    const pendingImages: HTMLImageElement[] = [];
+    const pendingAudios: HTMLAudioElement[] = [];
 
     // ── Input ─────────────────────────────────────────────────────────────
     const keys: Record<string, boolean> = {
@@ -511,9 +521,9 @@ export default function ArkanoidGame({
     }
 
     Promise.all([
-      loadImage(SPRITESHEET_SRC),
-      loadAudio(BOUNCE_SOUND_SRC),
-      loadAudio(BREAK_SOUND_SRC),
+      loadImage(SPRITESHEET_SRC, (img) => pendingImages.push(img)),
+      loadAudio(BOUNCE_SOUND_SRC, (audio) => pendingAudios.push(audio)),
+      loadAudio(BREAK_SOUND_SRC, (audio) => pendingAudios.push(audio)),
     ])
       .then(([img, bounce, brk]) => {
         if (cancelled) return;
@@ -535,6 +545,21 @@ export default function ArkanoidGame({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       canvas.removeEventListener("mousemove", handleMouseMove);
+      // Aborta cualquier descarga de assets en curso (evita que el doble
+      // montaje de mount/cleanup/mount de React StrictMode en desarrollo
+      // deje dos requests concurrentes por el mismo audio, que el dev
+      // server de Next puede resolver con un 503 en la segunda).
+      for (const img of pendingImages) {
+        img.onload = null;
+        img.onerror = null;
+        img.src = "";
+      }
+      for (const audio of pendingAudios) {
+        audio.oncanplaythrough = null;
+        audio.onerror = null;
+        audio.pause();
+        audio.src = "";
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per mount by design; paused is read via pausedRef
   }, []);
