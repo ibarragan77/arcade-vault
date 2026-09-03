@@ -6,12 +6,12 @@ import type { Game } from "@/lib/data";
 import { useSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/client";
 import { saveScore } from "@/lib/scores";
-import AsteroidsGame from "@/components/games/asteroids/AsteroidsGame";
+import { GAME_ENGINES } from "@/lib/game-engines";
 
 export default function GamePlayer({ game }: { game: Game }) {
   const router = useRouter();
   const { user } = useSession();
-  const isAsteroids = game.id === "asteroides";
+  const engine = GAME_ENGINES[game.id];
   const [resetKey, setResetKey] = useState(0);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
@@ -27,20 +27,20 @@ export default function GamePlayer({ game }: { game: Game }) {
   }, [user]);
 
   useEffect(() => {
-    if (isAsteroids) return;
+    if (engine) return;
     if (over || paused) return;
     const t = setInterval(
       () => setScore((s) => s + Math.floor(10 + Math.random() * 90)),
       220,
     );
     return () => clearInterval(t);
-  }, [isAsteroids, over, paused]);
+  }, [engine, over, paused]);
 
   useEffect(() => {
-    if (isAsteroids) return;
+    if (engine) return;
     if (score > 0 && score % 2500 < 100)
       queueMicrotask(() => setLevel((l) => l + 1));
-  }, [isAsteroids, score]);
+  }, [engine, score]);
 
   const endGame = () => setOver(true);
   const restart = () => {
@@ -51,7 +51,7 @@ export default function GamePlayer({ game }: { game: Game }) {
     setOver(false);
     setSaved(false);
     setSaveError(false);
-    if (isAsteroids) setResetKey((k) => k + 1);
+    if (engine) setResetKey((k) => k + 1);
   };
 
   const handleSaveScore = async () => {
@@ -79,10 +79,12 @@ export default function GamePlayer({ game }: { game: Game }) {
             <div className="l">Puntuación</div>
             <div className="v">{score.toLocaleString("es-ES")}</div>
           </div>
-          <div className="hud-stat lives">
-            <div className="l">Vidas</div>
-            <div className="v">{"♥ ".repeat(lives).trim() || "—"}</div>
-          </div>
+          {(!engine || engine.hasLives) && (
+            <div className="hud-stat lives">
+              <div className="l">Vidas</div>
+              <div className="v">{"♥ ".repeat(lives).trim() || "—"}</div>
+            </div>
+          )}
           <div className="hud-stat level">
             <div className="l">Nivel</div>
             <div className="v">{String(level).padStart(2, "0")}</div>
@@ -106,8 +108,8 @@ export default function GamePlayer({ game }: { game: Game }) {
 
       <div className="crt">
         <div className="crt-screen">
-          {isAsteroids ? (
-            <AsteroidsGame
+          {engine ? (
+            <engine.Component
               key={resetKey}
               paused={paused || over}
               onScoreChange={setScore}
