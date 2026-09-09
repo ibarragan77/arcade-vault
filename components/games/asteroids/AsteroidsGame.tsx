@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GameEngineProps } from "@/lib/game-engines";
 
 type AsteroidsGameProps = GameEngineProps;
@@ -16,6 +16,59 @@ const TRIPLE_SPREAD = 0.18;
 const RADII = [0, 16, 30, 50]; // por tamaño 1, 2, 3
 const SPEEDS = [0, 85, 55, 32]; // velocidad base por tamaño
 const POINTS = [0, 100, 50, 20]; // puntos por tamaño
+
+// ── Skins ─────────────────────────────────────────────────────────────────────
+type SkinId = "clasico" | "neon" | "retro";
+
+type SkinPalette = {
+  bg: string;
+  ship: string;
+  asteroid: string;
+  bullet: string;
+  powerup: string;
+  thruster: string; // rgba() completo, para la llama del propulsor
+  particleRGB: string; // "r,g,b" para interpolar el alpha de las partículas
+  hudText: string;
+  hudAccent: string; // indicador "3x" del power-up activo
+};
+
+const SKIN_STORAGE_KEY = "asteroids-skin";
+
+const SKIN_PALETTES: Record<SkinId, SkinPalette> = {
+  clasico: {
+    bg: "#000",
+    ship: "#fff",
+    asteroid: "#fff",
+    bullet: "#fff",
+    powerup: "#0ff",
+    thruster: "rgba(255, 130, 0, 0.85)",
+    particleRGB: "255,255,255",
+    hudText: "#fff",
+    hudAccent: "#0ff",
+  },
+  neon: {
+    bg: "#000",
+    ship: "#f5ff00", // var(--yellow), ancla en games.color = "yellow"
+    asteroid: "#ff006e", // var(--magenta)
+    bullet: "#00f5ff", // var(--cyan)
+    powerup: "#00ff88", // var(--green)
+    thruster: "rgba(255, 140, 0, 0.9)",
+    particleRGB: "0,245,255",
+    hudText: "#f5ff00",
+    hudAccent: "#00ff88",
+  },
+  retro: {
+    bg: "#000",
+    ship: "#ffb000", // ámbar, fósforo de monitor vectorial clásico
+    asteroid: "#ffb000",
+    bullet: "#ffb000",
+    powerup: "#ffb000",
+    thruster: "rgba(255, 176, 0, 0.85)",
+    particleRGB: "255,176,0",
+    hudText: "#ffb000",
+    hudAccent: "#ffb000",
+  },
+};
 
 const wrap = (v: number, max: number) => ((v % max) + max) % max;
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
@@ -48,8 +101,8 @@ class Bullet {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = "#fff";
+  draw(ctx: CanvasRenderingContext2D, palette: SkinPalette) {
+    ctx.fillStyle = palette.bullet;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -105,11 +158,11 @@ class Asteroid {
     ];
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, palette: SkinPalette) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
-    ctx.strokeStyle = "#fff";
+    ctx.strokeStyle = palette.asteroid;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -148,18 +201,18 @@ class PowerUp {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, palette: SkinPalette) {
     if (this.ttl < 2 && Math.floor(this.ttl * 8) % 2 === 0) return;
     const pulse = 0.85 + Math.sin(performance.now() / 150) * 0.15;
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(Math.PI / 4);
-    ctx.strokeStyle = "#0ff";
+    ctx.strokeStyle = palette.powerup;
     ctx.lineWidth = 2;
     const r = this.radius * pulse;
     ctx.strokeRect(-r, -r, r * 2, r * 2);
     ctx.restore();
-    ctx.fillStyle = "#0ff";
+    ctx.fillStyle = palette.powerup;
     ctx.font = "bold 12px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -239,7 +292,7 @@ class Ship {
     return [new Bullet(ox, oy, this.angle)];
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, palette: SkinPalette) {
     if (this.dead) return;
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0)
@@ -248,7 +301,7 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = "#fff";
+    ctx.strokeStyle = palette.ship;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
 
@@ -267,7 +320,7 @@ class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(6, 14), 0);
       ctx.lineTo(-8, 4);
-      ctx.strokeStyle = "rgba(255, 130, 0, 0.85)";
+      ctx.strokeStyle = palette.thruster;
       ctx.stroke();
     }
 
@@ -303,9 +356,9 @@ class Particle {
     if (this.ttl <= 0) this.dead = true;
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D, palette: SkinPalette) {
     const alpha = this.ttl / this.life;
-    ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+    ctx.strokeStyle = `rgba(${palette.particleRGB},${alpha.toFixed(2)})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(this.x, this.y);
@@ -325,10 +378,37 @@ export default function AsteroidsGame({
 }: AsteroidsGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pausedRef = useRef(paused);
+  const [skin, setSkin] = useState<SkinId>("clasico");
+  const skinRef = useRef<SkinId>(skin);
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    skinRef.current = skin;
+  }, [skin]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SKIN_STORAGE_KEY);
+      if (saved === "clasico" || saved === "neon" || saved === "retro") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura única de localStorage al montar para restaurar el skin guardado, mismo patrón SSR-safe que lib/session.ts
+        setSkin(saved);
+      }
+    } catch {
+      // localStorage no disponible (SSR, modo privado, etc.) — se queda en "clasico"
+    }
+  }, []);
+
+  function handleSkinChange(id: SkinId) {
+    setSkin(id);
+    try {
+      localStorage.setItem(SKIN_STORAGE_KEY, id);
+    } catch {
+      // localStorage no disponible (modo privado, etc.) — el skin no persiste pero el juego sigue funcionando
+    }
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -507,11 +587,11 @@ export default function AsteroidsGame({
     }
 
     // ── Draw ─────────────────────────────────────────────────────────────
-    function drawLifeIcon(x: number, y: number) {
+    function drawLifeIcon(x: number, y: number, palette: SkinPalette) {
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(-Math.PI / 2);
-      ctx.strokeStyle = "#fff";
+      ctx.strokeStyle = palette.hudText;
       ctx.lineWidth = 1.2;
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -524,8 +604,8 @@ export default function AsteroidsGame({
       ctx.restore();
     }
 
-    function drawHUD() {
-      ctx.fillStyle = "#fff";
+    function drawHUD(palette: SkinPalette) {
+      ctx.fillStyle = palette.hudText;
       ctx.font = "15px monospace";
 
       ctx.textAlign = "left";
@@ -534,26 +614,29 @@ export default function AsteroidsGame({
       ctx.textAlign = "center";
       ctx.fillText(`NIVEL ${level}`, W / 2, 26);
 
-      for (let i = 0; i < lives; i++) drawLifeIcon(W - 16 - i * 22, 18);
+      for (let i = 0; i < lives; i++)
+        drawLifeIcon(W - 16 - i * 22, 18, palette);
 
       if (ship.tripleShot > 0) {
         ctx.textAlign = "left";
-        ctx.fillStyle = "#0ff";
+        ctx.fillStyle = palette.hudAccent;
         ctx.fillText(`3x  ${ship.tripleShot.toFixed(1)}s`, 14, 46);
       }
     }
 
     function draw() {
-      ctx.fillStyle = "#000";
+      const palette = SKIN_PALETTES[skinRef.current];
+
+      ctx.fillStyle = palette.bg;
       ctx.fillRect(0, 0, W, H);
 
-      particles.forEach((p) => p.draw(ctx));
-      asteroids.forEach((a) => a.draw(ctx));
-      powerUps.forEach((p) => p.draw(ctx));
-      bullets.forEach((b) => b.draw(ctx));
-      ship.draw(ctx);
+      particles.forEach((p) => p.draw(ctx, palette));
+      asteroids.forEach((a) => a.draw(ctx, palette));
+      powerUps.forEach((p) => p.draw(ctx, palette));
+      bullets.forEach((b) => b.draw(ctx, palette));
+      ship.draw(ctx, palette);
 
-      drawHUD();
+      drawHUD(palette);
     }
 
     // ── Loop principal ──────────────────────────────────────────────────
@@ -587,11 +670,36 @@ export default function AsteroidsGame({
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={800}
-      height={600}
-      style={{ width: "100%", height: "100%", display: "block" }}
-    />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <canvas
+        ref={canvasRef}
+        width={800}
+        height={600}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+      <select
+        value={skin}
+        onChange={(e) => handleSkinChange(e.target.value as SkinId)}
+        aria-label="Skin de Asteroids"
+        style={{
+          position: "absolute",
+          right: 10,
+          bottom: 10,
+          zIndex: 4,
+          background: "#111",
+          color: "#fff",
+          border: "1px solid rgba(255,255,255,0.4)",
+          borderRadius: 4,
+          font: "12px monospace",
+          padding: "2px 6px",
+        }}
+      >
+        {(Object.keys(SKIN_PALETTES) as SkinId[]).map((id) => (
+          <option key={id} value={id}>
+            {id.toUpperCase()}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

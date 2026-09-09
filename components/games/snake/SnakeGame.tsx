@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GameEngineProps } from "@/lib/game-engines";
 
 type SnakeGameProps = GameEngineProps;
@@ -19,6 +19,45 @@ const FRUITS_PER_LEVEL = 5;
 type Cell = { col: number; row: number };
 type Direction = "up" | "down" | "left" | "right";
 type SpriteRect = { x: number; y: number; w: number; h: number };
+
+// ── Skins ─────────────────────────────────────────────────────────────────────
+type SkinId = "clasico" | "neon" | "retro";
+
+type SkinPalette = {
+  bg: string;
+  snakeHead: string;
+  snakeBody: string;
+  hudText: string; // "Score"
+  hudAccent: string; // "Nivel"
+};
+
+const SKIN_STORAGE_KEY = "snake-skin";
+
+// Los sprites de fruta (FRUIT_SPRITES / fruits.png) son imágenes fijas y se
+// mantienen idénticas en los 3 skins — no hay colores de fruta que repaletizar.
+const SKIN_PALETTES: Record<SkinId, SkinPalette> = {
+  clasico: {
+    bg: "#000",
+    snakeHead: "#8dffc2",
+    snakeBody: "#3ddc84",
+    hudText: "#fff",
+    hudAccent: "#fff",
+  },
+  neon: {
+    bg: "#000",
+    snakeHead: "#00ff88", // var(--green), ancla en games.color = "green"
+    snakeBody: "#00cc6f",
+    hudText: "#00ff88",
+    hudAccent: "#ff006e", // var(--magenta)
+  },
+  retro: {
+    bg: "#000",
+    snakeHead: "#ffb000", // ámbar, mismo fósforo retro usado en Asteroids
+    snakeBody: "#b37c00",
+    hudText: "#ffb000",
+    hudAccent: "#ffb000",
+  },
+};
 
 // Portado de references/source-assets/snake-assets/sprites.js (fila de frutas,
 // hoja fruits.png 3790x442px).
@@ -102,10 +141,37 @@ export default function SnakeGame({
 }: SnakeGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pausedRef = useRef(paused);
+  const [skin, setSkin] = useState<SkinId>("clasico");
+  const skinRef = useRef<SkinId>(skin);
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    skinRef.current = skin;
+  }, [skin]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SKIN_STORAGE_KEY);
+      if (saved === "clasico" || saved === "neon" || saved === "retro") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura única de localStorage al montar para restaurar el skin guardado, mismo patrón SSR-safe que lib/session.ts
+        setSkin(saved);
+      }
+    } catch {
+      // localStorage no disponible (SSR, modo privado, etc.) — se queda en "clasico"
+    }
+  }, []);
+
+  function handleSkinChange(id: SkinId) {
+    setSkin(id);
+    try {
+      localStorage.setItem(SKIN_STORAGE_KEY, id);
+    } catch {
+      // localStorage no disponible (modo privado, etc.) — el skin no persiste pero el juego sigue funcionando
+    }
+  }
 
   useEffect(() => {
     const canvasEl = canvasRef.current;
@@ -233,7 +299,9 @@ export default function SnakeGame({
 
     // ── Draw ─────────────────────────────────────────────────────────────
     function draw() {
-      ctx.fillStyle = "#000";
+      const palette = SKIN_PALETTES[skinRef.current];
+
+      ctx.fillStyle = palette.bg;
       ctx.fillRect(0, 0, W, H);
 
       if (!fruitsImg) return;
@@ -253,7 +321,7 @@ export default function SnakeGame({
 
       const margin = 1;
       snake.forEach((seg, i) => {
-        ctx.fillStyle = i === 0 ? "#8dffc2" : "#3ddc84";
+        ctx.fillStyle = i === 0 ? palette.snakeHead : palette.snakeBody;
         ctx.fillRect(
           seg.col * CELL + margin,
           seg.row * CELL + margin,
@@ -263,12 +331,13 @@ export default function SnakeGame({
       });
 
       if (!stopped) {
-        ctx.fillStyle = "#fff";
         ctx.font = "bold 18px monospace";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
+        ctx.fillStyle = palette.hudText;
         ctx.fillText("Score: " + score, 10, 10);
         ctx.textAlign = "center";
+        ctx.fillStyle = palette.hudAccent;
         ctx.fillText("Nivel: " + level, W / 2, 10);
       }
     }
@@ -319,11 +388,36 @@ export default function SnakeGame({
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={W}
-      height={H}
-      style={{ width: "100%", height: "100%", display: "block" }}
-    />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <canvas
+        ref={canvasRef}
+        width={W}
+        height={H}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+      <select
+        value={skin}
+        onChange={(e) => handleSkinChange(e.target.value as SkinId)}
+        aria-label="Skin de Snake"
+        style={{
+          position: "absolute",
+          right: 10,
+          bottom: 10,
+          zIndex: 4,
+          background: "#111",
+          color: "#fff",
+          border: "1px solid rgba(255,255,255,0.4)",
+          borderRadius: 4,
+          font: "12px monospace",
+          padding: "2px 6px",
+        }}
+      >
+        {(Object.keys(SKIN_PALETTES) as SkinId[]).map((id) => (
+          <option key={id} value={id}>
+            {id.toUpperCase()}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

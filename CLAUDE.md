@@ -31,17 +31,23 @@ Usa siempre /frontend-design para diseñar la interfaz de usuario.
   pregunte "qué juego agregamos después" o se pida el agente explícitamente. Mantiene su propio historial
   de recomendaciones en `references/game-planner-memory.md` para no repetir sugerencias ya rechazadas o
   ya implementadas.
-- `skin-designer` (`.claude/agents/skin-designer.md`) — subagente de solo diagnóstico que revisa si un
-  juego dado tiene implementados al menos tres skins (`neon`, `retro`, `clasico` como default) y si esas
-  paletas funcionan bien contra el fondo oscuro real del sitio (Arcade Vault no tiene modo claro). Siempre
-  confirma el `id` del juego contra Supabase/`GAME_ENGINES` antes de investigar, y usa
-  `references/started-games/03-tetris` solo como referencia del patrón mecánico de tema intercambiable —
-  ese juego no trae los 3 skins pedidos, solo un toggle claro/oscuro. Nunca escribe código de la app ni
-  specs — el siguiente paso sigue siendo `/spec`. Invócalo cuando se pregunte "el juego X tiene sus tres
-  skins", "revisa los skins de X" o se pida el agente explícitamente (`@skin-designer`). Registra el
-  estado real de skins por juego en `references/game-themes.md` (una fila por id, estilo
-  `references/implemented-games.md`) y mantiene su propio historial de diagnósticos en
-  `references/skin-designer-memory.md` para no repetir análisis ya hechos sobre el mismo juego.
+- `skin-designer` (`.claude/agents/skin-designer.md`) — subagente que revisa si un juego dado tiene
+  implementados al menos tres skins (`neon`, `retro`, `clasico` como default) y si esas paletas funcionan
+  bien contra el fondo oscuro real del sitio (Arcade Vault no tiene modo claro). Siempre confirma el `id`
+  del juego contra Supabase/`GAME_ENGINES` antes de investigar, y usa `references/started-games/03-tetris`
+  solo como referencia secundaria del patrón mecánico de tema intercambiable — ese juego no trae los 3
+  skins pedidos, solo un toggle claro/oscuro. Si el diagnóstico da `Sin skins` o `Parcial`, ya no se
+  limita a recomendar `/spec`: implementa directamente los skins faltantes en el único componente del
+  juego confirmado, generalizando el patrón real de `specs/11-asteroids-skins.md` /
+  `components/games/asteroids/AsteroidsGame.tsx` (constantes `SkinId`/`SKIN_PALETTES`, `skinRef`,
+  persistencia en `localStorage`, overlay `<select>`). Nunca toca `GamePlayer.tsx`,
+  `lib/game-engines.ts`, `GameEngineProps`, otro componente de juego, ni escribe specs, y nunca commitea
+  sus propios cambios — deja el working tree para que el usuario lo pruebe en el navegador (el agente no
+  tiene herramientas de navegador). Invócalo cuando se pregunte "el juego X tiene sus tres skins", "revisa
+  los skins de X" o se pida el agente explícitamente (`@skin-designer`). Registra el estado real de skins
+  por juego en `references/game-themes.md` (una fila por id, estilo `references/implemented-games.md`) y
+  mantiene su propio historial de diagnósticos/implementaciones en `references/skin-designer-memory.md`
+  para no repetir análisis ya hechos sobre el mismo juego.
 
 ## Formatting hook
 

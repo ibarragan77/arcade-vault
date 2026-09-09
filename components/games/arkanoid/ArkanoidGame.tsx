@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GameEngineProps } from "@/lib/game-engines";
 
 type ArkanoidGameProps = GameEngineProps;
@@ -171,6 +171,46 @@ const SPRITESHEET_SRC = "/games/arkanoid/spritesheet-breakout.png";
 const BOUNCE_SOUND_SRC = "/games/arkanoid/sounds/ball-bounce.mp3";
 const BREAK_SOUND_SRC = "/games/arkanoid/sounds/break-sound.mp3";
 
+// ── Skins ─────────────────────────────────────────────────────────────────────
+// Arkanoid pinta todo (bloques, paleta, bola, explosiones) a partir de recortes
+// de un único spritesheet PNG (`spritesheet-breakout.png`), no con formas
+// vectoriales de color plano como Asteroids. Por eso una "paleta" aquí no
+// reemplaza `fillStyle`/`strokeStyle` por elemento: aplica un `ctx.filter` CSS
+// sobre el dibujo de cada sprite (paddle/ball/bloques/explosiones) para
+// re-tonalizar los mismos píxeles, más el color de fondo del canvas y del HUD
+// de texto (los dos únicos elementos que sí se pintan con color plano).
+type SkinId = "clasico" | "neon" | "retro";
+
+type SkinPalette = {
+  bg: string;
+  hudText: string;
+  spriteFilter: string; // valor de ctx.filter aplicado a paddle/ball/bloques/explosiones
+};
+
+const SKIN_STORAGE_KEY = "arkanoid-skin";
+
+const SKIN_PALETTES: Record<SkinId, SkinPalette> = {
+  clasico: {
+    bg: "#000",
+    hudText: "#fff",
+    // "none" deja los sprites con los colores originales del spritesheet, sin
+    // ninguna diferencia visual respecto al comportamiento previo a los skins.
+    spriteFilter: "none",
+  },
+  neon: {
+    bg: "#000",
+    hudText: "#00f5ff", // var(--cyan), ancla en games.color = "cyan" de bloque-buster
+    spriteFilter:
+      "saturate(2.4) brightness(1.2) drop-shadow(0 0 4px rgba(0, 245, 255, 0.55))",
+  },
+  retro: {
+    bg: "#000",
+    hudText: "#ffb000", // mismo ámbar de fósforo CRT usado en el retro de Asteroids
+    spriteFilter:
+      "grayscale(1) sepia(1) saturate(3.2) hue-rotate(-28deg) brightness(0.95) contrast(1.05)",
+  },
+};
+
 type Paddle = { x: number; y: number; w: number; h: number };
 type Ball = {
   x: number;
@@ -234,10 +274,37 @@ export default function ArkanoidGame({
 }: ArkanoidGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pausedRef = useRef(paused);
+  const [skin, setSkin] = useState<SkinId>("clasico");
+  const skinRef = useRef<SkinId>(skin);
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    skinRef.current = skin;
+  }, [skin]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SKIN_STORAGE_KEY);
+      if (saved === "clasico" || saved === "neon" || saved === "retro") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura única de localStorage al montar para restaurar el skin guardado, mismo patrón SSR-safe que lib/session.ts
+        setSkin(saved);
+      }
+    } catch {
+      // localStorage no disponible (SSR, modo privado, etc.) — se queda en "clasico"
+    }
+  }, []);
+
+  function handleSkinChange(id: SkinId) {
+    setSkin(id);
+    try {
+      localStorage.setItem(SKIN_STORAGE_KEY, id);
+    } catch {
+      // localStorage no disponible (modo privado, etc.) — el skin no persiste pero el juego sigue funcionando
+    }
+  }
 
   useEffect(() => {
     const canvasEl = canvasRef.current;
@@ -430,10 +497,14 @@ export default function ArkanoidGame({
       y: number,
       w: number,
       h: number,
+      palette: SkinPalette,
     ) {
       if (!ssImg) return;
       const sp = SPRITES[name];
+      ctx.save();
+      ctx.filter = palette.spriteFilter;
       ctx.drawImage(ssImg, sp.sx, sp.sy, sp.sw, sp.sh, x, y, w, h);
+      ctx.restore();
     }
     function drawBlockSprite(
       color: BlockColor,
@@ -441,10 +512,14 @@ export default function ArkanoidGame({
       y: number,
       w: number,
       h: number,
+      palette: SkinPalette,
     ) {
       if (!ssImg) return;
       const sp = BLOCK_SPRITES[color];
+      ctx.save();
+      ctx.filter = palette.spriteFilter;
       ctx.drawImage(ssImg, sp.sx, sp.sy, sp.sw, sp.sh, x, y, w, h);
+      ctx.restore();
     }
     function drawFrame(
       frame: SpriteRect,
@@ -452,20 +527,33 @@ export default function ArkanoidGame({
       y: number,
       w: number,
       h: number,
+      palette: SkinPalette,
     ) {
       if (!ssImg) return;
+      ctx.save();
+      ctx.filter = palette.spriteFilter;
       ctx.drawImage(ssImg, frame.sx, frame.sy, frame.sw, frame.sh, x, y, w, h);
+      ctx.restore();
     }
 
     function draw() {
-      ctx.fillStyle = "#000";
+      const palette = SKIN_PALETTES[skinRef.current];
+
+      ctx.fillStyle = palette.bg;
       ctx.fillRect(0, 0, W, H);
 
       if (!ssImg) return;
 
       for (const block of blocks) {
         if (block.alive)
-          drawBlockSprite(block.color, block.x, block.y, block.w, block.h);
+          drawBlockSprite(
+            block.color,
+            block.x,
+            block.y,
+            block.w,
+            block.h,
+            palette,
+          );
       }
 
       for (const exp of explosions) {
@@ -479,14 +567,15 @@ export default function ArkanoidGame({
           exp.y,
           exp.w,
           exp.h,
+          palette,
         );
       }
 
-      drawSprite("paddle", paddle.x, paddle.y, paddle.w, paddle.h);
-      drawSprite("ball", ball.x, ball.y, ball.w, ball.h);
+      drawSprite("paddle", paddle.x, paddle.y, paddle.w, paddle.h, palette);
+      drawSprite("ball", ball.x, ball.y, ball.w, ball.h, palette);
 
       if (gameState === "playing") {
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = palette.hudText;
         ctx.font = "bold 18px monospace";
         ctx.textAlign = "left";
         ctx.textBaseline = "top";
@@ -497,7 +586,7 @@ export default function ArkanoidGame({
         const ballSpacing = 4;
         for (let i = 0; i < lives; i++) {
           const bx = W - 10 - (lives - i) * (ballSize + ballSpacing);
-          drawSprite("ball", bx, 10, ballSize, ballSize);
+          drawSprite("ball", bx, 10, ballSize, ballSize, palette);
         }
       }
     }
@@ -561,15 +650,40 @@ export default function ArkanoidGame({
         audio.src = "";
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per mount by design; paused is read via pausedRef
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per mount by design; paused and skin are read via pausedRef/skinRef
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={W}
-      height={H}
-      style={{ width: "100%", height: "100%", display: "block" }}
-    />
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <canvas
+        ref={canvasRef}
+        width={W}
+        height={H}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+      <select
+        value={skin}
+        onChange={(e) => handleSkinChange(e.target.value as SkinId)}
+        aria-label="Skin de Arkanoid"
+        style={{
+          position: "absolute",
+          right: 10,
+          bottom: 10,
+          zIndex: 4,
+          background: "#111",
+          color: "#fff",
+          border: "1px solid rgba(255,255,255,0.4)",
+          borderRadius: 4,
+          font: "12px monospace",
+          padding: "2px 6px",
+        }}
+      >
+        {(Object.keys(SKIN_PALETTES) as SkinId[]).map((id) => (
+          <option key={id} value={id}>
+            {id.toUpperCase()}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
