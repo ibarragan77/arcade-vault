@@ -22,6 +22,27 @@ Existing specs live in `specs/01` through `specs/10`, covering: MVP static scree
 
 Usa siempre /frontend-design para diseñar la interfaz de usuario.
 
+## Agentes
+
+- `game-planner` (`.claude/agents/game-planner.md`) — subagente de solo planificación que recomienda qué
+  juego conviene portar o agregar a continuación al catálogo (investiga Supabase `games`,
+  `lib/game-engines.ts`, `references/implemented-games.md` y `references/started-games/`). Nunca escribe
+  código de la app ni specs — el siguiente paso sigue siendo `/add-game` o `/spec`. Invócalo cuando se
+  pregunte "qué juego agregamos después" o se pida el agente explícitamente. Mantiene su propio historial
+  de recomendaciones en `references/game-planner-memory.md` para no repetir sugerencias ya rechazadas o
+  ya implementadas.
+- `skin-designer` (`.claude/agents/skin-designer.md`) — subagente de solo diagnóstico que revisa si un
+  juego dado tiene implementados al menos tres skins (`neon`, `retro`, `clasico` como default) y si esas
+  paletas funcionan bien contra el fondo oscuro real del sitio (Arcade Vault no tiene modo claro). Siempre
+  confirma el `id` del juego contra Supabase/`GAME_ENGINES` antes de investigar, y usa
+  `references/started-games/03-tetris` solo como referencia del patrón mecánico de tema intercambiable —
+  ese juego no trae los 3 skins pedidos, solo un toggle claro/oscuro. Nunca escribe código de la app ni
+  specs — el siguiente paso sigue siendo `/spec`. Invócalo cuando se pregunte "el juego X tiene sus tres
+  skins", "revisa los skins de X" o se pida el agente explícitamente (`@skin-designer`). Registra el
+  estado real de skins por juego en `references/game-themes.md` (una fila por id, estilo
+  `references/implemented-games.md`) y mantiene su propio historial de diagnósticos en
+  `references/skin-designer-memory.md` para no repetir análisis ya hechos sobre el mismo juego.
+
 ## Formatting hook
 
 `.claude/settings.json` registers a `PostToolUse` hook (`.claude/hooks/format-on-write.js`) that runs on every `Write`/`Edit` — it formats with Prettier and checks ESLint automatically. No need to manually run `npm run lint` after every edit for that reason alone, though it's still the way to check the whole project.
