@@ -34,6 +34,20 @@ type SkinPalette = {
 
 const SKIN_STORAGE_KEY = "asteroids-skin";
 
+// ── Controles táctiles ────────────────────────────────────────────────────────
+type TouchAction = "rotateLeft" | "rotateRight" | "thrust" | "fire";
+
+const TOUCH_HIDDEN_STORAGE_KEY = "asteroids-touch-hidden";
+
+// Mapea cada botón virtual a la misma tecla lógica que ya escucha el motor,
+// para no duplicar lógica de input:
+const TOUCH_ACTION_KEYS: Record<TouchAction, string> = {
+  rotateLeft: "ArrowLeft",
+  rotateRight: "ArrowRight",
+  thrust: "ArrowUp",
+  fire: "Space",
+};
+
 const SKIN_PALETTES: Record<SkinId, SkinPalette> = {
   clasico: {
     bg: "#000",
@@ -380,10 +394,37 @@ export default function AsteroidsGame({
   const pausedRef = useRef(paused);
   const [skin, setSkin] = useState<SkinId>("clasico");
   const skinRef = useRef<SkinId>(skin);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [touchOverlayHidden, setTouchOverlayHidden] = useState(false);
+  const keysRef = useRef<Record<string, boolean>>({});
+  const justPressedRef = useRef<Record<string, boolean>>({});
+  const activeTouchesRef = useRef<Map<number, TouchAction>>(new Map());
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    const touch =
+      window.matchMedia("(pointer: coarse)").matches ||
+      "ontouchstart" in window;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- detección única al montar, mismo patrón SSR-safe que la lectura de skin de spec 11
+    setIsTouchDevice(touch);
+  }, []);
+
+  useEffect(() => {
+    function checkOrientation() {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    }
+    checkOrientation();
+    window.addEventListener("resize", checkOrientation);
+    window.addEventListener("orientationchange", checkOrientation);
+    return () => {
+      window.removeEventListener("resize", checkOrientation);
+      window.removeEventListener("orientationchange", checkOrientation);
+    };
+  }, []);
 
   useEffect(() => {
     skinRef.current = skin;
@@ -411,6 +452,61 @@ export default function AsteroidsGame({
   }
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(TOUCH_HIDDEN_STORAGE_KEY);
+      if (saved === "1") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura única de localStorage al montar, mismo patrón SSR-safe que la lectura de skin de spec 11
+        setTouchOverlayHidden(true);
+      }
+    } catch {
+      // localStorage no disponible (SSR, modo privado, etc.) — el overlay se queda visible
+    }
+  }, []);
+
+  function handleToggleTouchOverlay() {
+    const next = !touchOverlayHidden;
+    setTouchOverlayHidden(next);
+    try {
+      localStorage.setItem(TOUCH_HIDDEN_STORAGE_KEY, next ? "1" : "0");
+    } catch {
+      // localStorage no disponible (modo privado, etc.) — la preferencia no persiste pero el juego sigue funcionando
+    }
+  }
+
+  function handleTouchButtonStart(action: TouchAction, touchId: number) {
+    activeTouchesRef.current.set(touchId, action);
+    const code = TOUCH_ACTION_KEYS[action];
+    if (!keysRef.current[code]) justPressedRef.current[code] = true;
+    keysRef.current[code] = true;
+  }
+
+  function handleTouchButtonEnd(touchId: number) {
+    const action = activeTouchesRef.current.get(touchId);
+    if (!action) return;
+    activeTouchesRef.current.delete(touchId);
+    keysRef.current[TOUCH_ACTION_KEYS[action]] = false;
+  }
+
+  function touchButtonStyle(color: string): React.CSSProperties {
+    return {
+      width: 52,
+      height: 52,
+      borderRadius: "50%",
+      border: `2px solid ${color}`,
+      background: "rgba(0, 0, 0, 0.35)",
+      color,
+      fontSize: 18,
+      lineHeight: 1,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      userSelect: "none",
+      touchAction: "none",
+      WebkitTapHighlightColor: "transparent",
+    };
+  }
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx2d = canvas.getContext("2d");
@@ -418,8 +514,10 @@ export default function AsteroidsGame({
     const ctx: CanvasRenderingContext2D = ctx2d;
 
     // ── Input ─────────────────────────────────────────────────────────────
-    const keys: Record<string, boolean> = {};
-    const justPressed: Record<string, boolean> = {};
+    // Mismos objetos que usan los botones táctiles (handleTouchButtonStart/End),
+    // vía keysRef/justPressedRef, para no duplicar lógica de input.
+    const keys = keysRef.current;
+    const justPressed = justPressedRef.current;
     const GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "Space"]);
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -669,14 +767,179 @@ export default function AsteroidsGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per mount by design; paused is read via pausedRef
   }, []);
 
+  const palette = SKIN_PALETTES[skin];
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      data-touch-device={isTouchDevice}
+      style={{ position: "relative", width: "100%", height: "100%" }}
+    >
       <canvas
         ref={canvasRef}
         width={800}
         height={600}
         style={{ width: "100%", height: "100%", display: "block" }}
       />
+      {isTouchDevice && !isPortrait && !touchOverlayHidden && (
+        <>
+          <div
+            style={{
+              position: "absolute",
+              left: 16,
+              bottom: 16,
+              zIndex: 5,
+              display: "grid",
+              gridTemplateColumns: "52px 52px 52px",
+              gridTemplateRows: "52px 52px",
+              gap: 4,
+            }}
+          >
+            <button
+              aria-label="Empuje"
+              onTouchStart={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonStart("thrust", t.identifier);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonEnd(t.identifier);
+              }}
+              onTouchCancel={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonEnd(t.identifier);
+              }}
+              style={{
+                ...touchButtonStyle(palette.ship),
+                gridColumn: 2,
+                gridRow: 1,
+              }}
+            >
+              ▲
+            </button>
+            <button
+              aria-label="Rotar izquierda"
+              onTouchStart={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonStart("rotateLeft", t.identifier);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonEnd(t.identifier);
+              }}
+              onTouchCancel={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonEnd(t.identifier);
+              }}
+              style={{
+                ...touchButtonStyle(palette.ship),
+                gridColumn: 1,
+                gridRow: 2,
+              }}
+            >
+              ◄
+            </button>
+            <button
+              aria-label="Rotar derecha"
+              onTouchStart={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonStart("rotateRight", t.identifier);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonEnd(t.identifier);
+              }}
+              onTouchCancel={(e) => {
+                e.preventDefault();
+                for (const t of Array.from(e.changedTouches))
+                  handleTouchButtonEnd(t.identifier);
+              }}
+              style={{
+                ...touchButtonStyle(palette.ship),
+                gridColumn: 3,
+                gridRow: 2,
+              }}
+            >
+              ►
+            </button>
+          </div>
+          <button
+            aria-label="Disparo"
+            onTouchStart={(e) => {
+              e.preventDefault();
+              for (const t of Array.from(e.changedTouches))
+                handleTouchButtonStart("fire", t.identifier);
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              for (const t of Array.from(e.changedTouches))
+                handleTouchButtonEnd(t.identifier);
+            }}
+            onTouchCancel={(e) => {
+              e.preventDefault();
+              for (const t of Array.from(e.changedTouches))
+                handleTouchButtonEnd(t.identifier);
+            }}
+            style={{
+              ...touchButtonStyle(palette.bullet),
+              position: "absolute",
+              right: 16,
+              bottom: 44,
+              zIndex: 5,
+            }}
+          >
+            ●
+          </button>
+        </>
+      )}
+      {isTouchDevice && !isPortrait && (
+        <button
+          onClick={handleToggleTouchOverlay}
+          aria-label={
+            touchOverlayHidden ? "Mostrar controles" : "Ocultar controles"
+          }
+          style={{
+            position: "absolute",
+            left: 16,
+            bottom: 132,
+            zIndex: 6,
+            background: "#111",
+            color: palette.hudText,
+            border: `1px solid ${palette.hudText}`,
+            borderRadius: 4,
+            font: "11px monospace",
+            padding: "4px 8px",
+          }}
+        >
+          {touchOverlayHidden ? "Mostrar controles" : "Ocultar controles"}
+        </button>
+      )}
+      {isTouchDevice && isPortrait && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 10,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            padding: 24,
+            background: "#000",
+            color: "#fff",
+            font: "16px monospace",
+          }}
+        >
+          Girá tu dispositivo a horizontal para jugar
+        </div>
+      )}
       <select
         value={skin}
         onChange={(e) => handleSkinChange(e.target.value as SkinId)}
