@@ -947,63 +947,79 @@ export default function FroggerGame({
       return buildSprite(p, w, (g, px, py) => drawTruck(g, p, px, py, w, dir));
     }
 
-    function drawLog(p: SkinPalette, px: number, py: number, w: number) {
-      ctx.fillStyle = p.log;
-      setGlow(p, p.log);
-      ctx.beginPath();
-      ctx.roundRect(px + 1, py + 6, w - 2, CELL - 12, 10);
-      ctx.fill();
-      clearGlow();
-      // Textura de vetas
-      ctx.strokeStyle = p.logLine;
-      ctx.lineWidth = 2;
-      for (const fy of [py + 14, py + CELL - 14]) {
-        ctx.beginPath();
-        ctx.moveTo(px + 10, fy);
-        ctx.lineTo(px + w - 10, fy);
-        ctx.stroke();
-      }
-    }
-
-    function drawTurtles(
+    function drawLog(
+      g: CanvasRenderingContext2D,
       p: SkinPalette,
       px: number,
       py: number,
-      cells: number,
+      w: number,
+    ) {
+      g.fillStyle = p.log;
+      setGlow(p, p.log, g);
+      g.beginPath();
+      g.roundRect(px + 1, py + 6, w - 2, CELL - 12, 10);
+      g.fill();
+      clearGlow(g);
+      // Textura de vetas
+      g.strokeStyle = p.logLine;
+      g.lineWidth = 2;
+      for (const fy of [py + 14, py + CELL - 14]) {
+        g.beginPath();
+        g.moveTo(px + 10, fy);
+        g.lineTo(px + w - 10, fy);
+        g.stroke();
+      }
+    }
+
+    // Una celda de tortuga con esquina superior izquierda en (px, py).
+    function drawTurtleCell(
+      g: CanvasRenderingContext2D,
+      p: SkinPalette,
+      px: number,
+      py: number,
       sub: boolean,
     ) {
-      for (let i = 0; i < cells; i++) {
-        const cx = px + i * CELL + CELL / 2;
-        const cy = py + CELL / 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, CELL / 2 - 5, 0, Math.PI * 2);
-        if (sub) {
-          // Sumergida: solo contorno semitransparente y sin glow, no sirve
-          // de apoyo — debe leerse distinta de una tortuga sólida en todo skin.
-          ctx.strokeStyle = p.turtleSubmerged;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          continue;
-        }
-        ctx.fillStyle = p.turtle;
-        setGlow(p, p.turtle);
-        ctx.fill();
-        clearGlow();
-        // Escamas del caparazón
-        ctx.strokeStyle = p.turtleScale;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
-        ctx.moveTo(cx - 14, cy);
-        ctx.lineTo(cx - 7, cy);
-        ctx.moveTo(cx + 7, cy);
-        ctx.lineTo(cx + 14, cy);
-        ctx.moveTo(cx, cy - 14);
-        ctx.lineTo(cx, cy - 7);
-        ctx.moveTo(cx, cy + 7);
-        ctx.lineTo(cx, cy + 14);
-        ctx.stroke();
+      const cx = px + CELL / 2;
+      const cy = py + CELL / 2;
+      g.beginPath();
+      g.arc(cx, cy, CELL / 2 - 5, 0, Math.PI * 2);
+      if (sub) {
+        // Sumergida: solo contorno semitransparente y sin glow, no sirve
+        // de apoyo — debe leerse distinta de una tortuga sólida en todo skin.
+        g.strokeStyle = p.turtleSubmerged;
+        g.lineWidth = 2;
+        g.stroke();
+        return;
       }
+      g.fillStyle = p.turtle;
+      setGlow(p, p.turtle, g);
+      g.fill();
+      clearGlow(g);
+      // Escamas del caparazón
+      g.strokeStyle = p.turtleScale;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(cx, cy, 7, 0, Math.PI * 2);
+      g.moveTo(cx - 14, cy);
+      g.lineTo(cx - 7, cy);
+      g.moveTo(cx + 7, cy);
+      g.lineTo(cx + 14, cy);
+      g.moveTo(cx, cy - 14);
+      g.lineTo(cx, cy - 7);
+      g.moveTo(cx, cy + 7);
+      g.lineTo(cx, cy + 14);
+      g.stroke();
+    }
+
+    function buildLogSprite(p: SkinPalette, width: number): Sprite {
+      const w = width * CELL;
+      return buildSprite(p, w, (g, px, py) => drawLog(g, p, px, py, w));
+    }
+
+    function buildTurtleSprite(p: SkinPalette, sub: boolean): Sprite {
+      return buildSprite(p, CELL, (g, px, py) =>
+        drawTurtleCell(g, p, px, py, sub),
+      );
     }
 
     function drawLanes(skinId: SkinId, p: SkinPalette) {
@@ -1011,7 +1027,6 @@ export default function FroggerGame({
         const py = lane.row * CELL;
         lane.entities.forEach((e, i) => {
           const px = e.x * CELL;
-          const w = e.width * CELL;
           if (e.type === "car") {
             const colorIndex = (lane.row + i) % p.cars.length;
             const sprite = getSprite(skinId, `car:${colorIndex}`, () =>
@@ -1026,9 +1041,21 @@ export default function FroggerGame({
             );
             blitSprite(sprite, px, py);
           } else if (e.type === "log") {
-            drawLog(p, px, py, w);
+            const sprite = getSprite(skinId, `log:${e.width}`, () =>
+              buildLogSprite(p, e.width),
+            );
+            blitSprite(sprite, px, py);
           } else {
-            drawTurtles(p, px, py, e.width, isSubmerged(e, elapsedMs));
+            // Un grupo de N tortugas = N drawImage de la misma celda cacheada
+            const sub = isSubmerged(e, elapsedMs);
+            const sprite = getSprite(
+              skinId,
+              sub ? "turtle-sub" : "turtle",
+              () => buildTurtleSprite(p, sub),
+            );
+            for (let c = 0; c < e.width; c++) {
+              blitSprite(sprite, px + c * CELL, py);
+            }
           }
         });
       }
