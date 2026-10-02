@@ -239,6 +239,19 @@ const SKIN_PALETTES: Record<SkinId, SkinPalette> = {
   },
 };
 
+// ── Contador FPS de debug ─────────────────────────────────────────────────────
+// Se activa solo con ?debug=fps (leído una vez al montar). Sin el parámetro no
+// se monta el <div> y el loop no mide nada.
+const DEBUG_FPS_PARAM = "fps"; // ?debug=fps
+
+type FpsStats = {
+  frames: number; // frames acumulados en la ventana actual
+  windowStart: number; // timestamp (ms) de inicio de la ventana de 500 ms
+  updateMsSum: number; // suma de ms de update() en la ventana
+  drawMsSum: number; // suma de ms de draw() en la ventana
+};
+const FPS_WINDOW_MS = 500;
+
 // ── Carriles ──────────────────────────────────────────────────────────────────
 const TURTLE_VISIBLE_MS = 3000;
 const TURTLE_SUBMERGED_MS = 1500;
@@ -398,10 +411,24 @@ export default function FroggerGame({
   const activeTouchesRef = useRef<Map<number, TouchAction>>(new Map());
   // Publicada por el useEffect del loop: misma ruta de input que el teclado.
   const applyDirectionRef = useRef<((dir: Direction) => void) | null>(null);
+  // Contador FPS: el estado decide si se monta el <div>; el loop lee el ref y
+  // escribe en el <div> vía fpsTextRef (sin setState, sin renders de React).
+  const [debugFps, setDebugFps] = useState(false);
+  const debugFpsRef = useRef(false);
+  const fpsTextRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    const enabled =
+      new URLSearchParams(window.location.search).get("debug") ===
+      DEBUG_FPS_PARAM;
+    debugFpsRef.current = enabled;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura única de la URL al montar, mismo patrón SSR-safe que la detección táctil
+    setDebugFps(enabled);
+  }, []);
 
   useEffect(() => {
     const touch =
@@ -1020,6 +1047,33 @@ export default function FroggerGame({
     let lastTime: number | null = null;
     let wasPaused = pausedRef.current;
 
+    // Solo con ?debug=fps: el loop sin el parámetro no llama a performance.now()
+    const measure = debugFpsRef.current;
+    const fps: FpsStats = {
+      frames: 0,
+      windowStart: -1, // se fija en el primer frame medido
+      updateMsSum: 0,
+      drawMsSum: 0,
+    };
+
+    function reportFps(now: number) {
+      if (fps.windowStart < 0) fps.windowStart = now;
+      fps.frames++;
+      const span = now - fps.windowStart;
+      if (span < FPS_WINDOW_MS) return;
+      const el = fpsTextRef.current;
+      if (el) {
+        const rate = Math.round((fps.frames * 1000) / span);
+        const upd = (fps.updateMsSum / fps.frames).toFixed(1);
+        const drw = (fps.drawMsSum / fps.frames).toFixed(1);
+        el.textContent = `FPS ${rate} · upd ${upd}ms · draw ${drw}ms`;
+      }
+      fps.frames = 0;
+      fps.windowStart = now;
+      fps.updateMsSum = 0;
+      fps.drawMsSum = 0;
+    }
+
     function loop(ts: number) {
       const isPaused = pausedRef.current;
       if (wasPaused && !isPaused) lastTime = null;
@@ -1028,8 +1082,19 @@ export default function FroggerGame({
       const dtMs = lastTime === null ? 0 : Math.min(ts - lastTime, 50);
       lastTime = ts;
 
-      if (!isPaused) update(dtMs);
-      draw();
+      if (measure) {
+        const t0 = performance.now();
+        if (!isPaused) update(dtMs);
+        const t1 = performance.now();
+        draw();
+        const t2 = performance.now();
+        fps.updateMsSum += t1 - t0;
+        fps.drawMsSum += t2 - t1;
+        reportFps(t2);
+      } else {
+        if (!isPaused) update(dtMs);
+        draw();
+      }
 
       if (!stopped) rafId = requestAnimationFrame(loop);
     }
@@ -1071,6 +1136,28 @@ export default function FroggerGame({
         height={H}
         style={{ height: "100%", width: "auto", display: "block" }}
       />
+      {/* Contador FPS de debug (?debug=fps): el loop escribe textContent vía
+          ref cada FPS_WINDOW_MS, sin pasar por React. */}
+      {debugFps && (
+        <div
+          ref={fpsTextRef}
+          style={{
+            position: "absolute",
+            left: 4,
+            top: 4,
+            zIndex: 7,
+            pointerEvents: "none",
+            background: "rgba(0, 0, 0, 0.7)",
+            color: "#0f0",
+            font: "11px monospace",
+            padding: "2px 6px",
+            borderRadius: 3,
+            whiteSpace: "nowrap",
+          }}
+        >
+          FPS …
+        </div>
+      )}
       {/* Cruz de saltos pegada a la esquina inferior izquierda: lejos del HUD
           (fila 0, arriba) y del <select> de skin (borde derecho, al medio). */}
       {isTouchDevice && !isPortrait && !touchOverlayHidden && (
