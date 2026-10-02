@@ -252,6 +252,10 @@ type FpsStats = {
 };
 const FPS_WINDOW_MS = 500;
 
+// ── Cachés de render ──────────────────────────────────────────────────────────
+// Fondo estático: un canvas W×H por skin, creado la primera vez que se usa.
+type BackgroundCache = Partial<Record<SkinId, HTMLCanvasElement>>;
+
 // ── Carriles ──────────────────────────────────────────────────────────────────
 const TURTLE_VISIBLE_MS = 3000;
 const TURTLE_SUBMERGED_MS = 1500;
@@ -741,23 +745,38 @@ export default function FroggerGame({
     }
 
     // ── Render ──────────────────────────────────────────────────────────
-    function fillRows(fromRow: number, toRow: number, color: string) {
-      ctx.fillStyle = color;
-      ctx.fillRect(0, fromRow * CELL, W, (toRow - fromRow + 1) * CELL);
+    // Glow del skin activo (shadowBlur = 0 en clasico/retro: no altera nada).
+    // `target` permite aplicarlo también sobre los canvas offscreen de caché.
+    function setGlow(
+      p: SkinPalette,
+      color: string,
+      target: CanvasRenderingContext2D = ctx,
+    ) {
+      target.shadowBlur = p.glow;
+      target.shadowColor = color;
     }
 
-    // Glow del skin activo (shadowBlur = 0 en clasico/retro: no altera nada)
-    function setGlow(p: SkinPalette, color: string) {
-      ctx.shadowBlur = p.glow;
-      ctx.shadowColor = color;
+    function clearGlow(target: CanvasRenderingContext2D = ctx) {
+      target.shadowBlur = 0;
+      target.shadowColor = "transparent";
     }
 
-    function clearGlow() {
-      ctx.shadowBlur = 0;
-      ctx.shadowColor = "transparent";
-    }
+    // Pinta el fondo estático (zonas, bocas con su borde y líneas de carretera)
+    // en un canvas offscreen W×H. Solo depende del skin: se construye una vez
+    // por skin y después se copia con un único drawImage por frame.
+    function buildBackground(p: SkinPalette): HTMLCanvasElement {
+      const bg = document.createElement("canvas");
+      bg.width = W;
+      bg.height = H;
+      const g = bg.getContext("2d");
+      if (!g) return bg;
 
-    function drawBackground(p: SkinPalette) {
+      function fillRows(fromRow: number, toRow: number, color: string) {
+        if (!g) return;
+        g.fillStyle = color;
+        g.fillRect(0, fromRow * CELL, W, (toRow - fromRow + 1) * CELL);
+      }
+
       fillRows(ROW_HUD, ROW_HUD, p.hudBg);
 
       // Fila de bocas: muro con 5 bocas de borde resaltado
@@ -765,13 +784,13 @@ export default function FroggerGame({
       for (const col of GOAL_COLS) {
         const x = col * CELL;
         const y = ROW_GOALS * CELL;
-        ctx.fillStyle = p.goal;
-        ctx.fillRect(x + 2, y + 2, CELL * 2 - 4, CELL - 4);
-        ctx.strokeStyle = p.goalBorder;
-        ctx.lineWidth = 2;
-        setGlow(p, p.goalBorder);
-        ctx.strokeRect(x + 2, y + 2, CELL * 2 - 4, CELL - 4);
-        clearGlow();
+        g.fillStyle = p.goal;
+        g.fillRect(x + 2, y + 2, CELL * 2 - 4, CELL - 4);
+        g.strokeStyle = p.goalBorder;
+        g.lineWidth = 2;
+        setGlow(p, p.goalBorder, g);
+        g.strokeRect(x + 2, y + 2, CELL * 2 - 4, CELL - 4);
+        clearGlow(g);
       }
 
       fillRows(ROW_RIVER_TOP, ROW_RIVER_BOT, p.river);
@@ -780,16 +799,28 @@ export default function FroggerGame({
       fillRows(ROW_START, ROW_START, p.safe);
 
       // Líneas discontinuas entre carriles de carretera
-      ctx.strokeStyle = p.roadLine;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([16, 16]);
+      g.strokeStyle = p.roadLine;
+      g.lineWidth = 2;
+      g.setLineDash([16, 16]);
       for (let row = ROW_ROAD_TOP + 1; row <= ROW_ROAD_BOT; row++) {
-        ctx.beginPath();
-        ctx.moveTo(0, row * CELL);
-        ctx.lineTo(W, row * CELL);
-        ctx.stroke();
+        g.beginPath();
+        g.moveTo(0, row * CELL);
+        g.lineTo(W, row * CELL);
+        g.stroke();
       }
-      ctx.setLineDash([]);
+      g.setLineDash([]);
+      return bg;
+    }
+
+    const backgroundCache: BackgroundCache = {};
+
+    function drawBackground(skinId: SkinId, p: SkinPalette) {
+      let bg = backgroundCache[skinId];
+      if (!bg) {
+        bg = buildBackground(p);
+        backgroundCache[skinId] = bg;
+      }
+      ctx.drawImage(bg, 0, 0);
     }
 
     function drawCar(
@@ -1035,8 +1066,10 @@ export default function FroggerGame({
     function draw() {
       // Paleta leída del ref en cada frame: el cambio de skin es instantáneo,
       // también en pausa o en medio de una partida.
-      const palette = SKIN_PALETTES[skinRef.current];
-      drawBackground(palette);
+      // Las cachés se indexan por el mismo SkinId: fondo y paleta cambian juntos.
+      const skinId = skinRef.current;
+      const palette = SKIN_PALETTES[skinId];
+      drawBackground(skinId, palette);
       drawFilledGoals(palette);
       drawLanes(palette);
       drawFrog(palette);
