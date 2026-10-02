@@ -256,6 +256,17 @@ const FPS_WINDOW_MS = 500;
 // Fondo estático: un canvas W×H por skin, creado la primera vez que se usa.
 type BackgroundCache = Partial<Record<SkinId, HTMLCanvasElement>>;
 
+// Sprites de entidades por skin, con el glow ya horneado. La clave identifica
+// la variante:
+//   "car:<colorIndex>"         auto de 1 celda, color p.cars[colorIndex]
+//   "truck:<width>:<dir>"      camión de 2 o 3 celdas, cabina según dir (1 | -1)
+//   "log:<width>"              tronco de 2, 3 o 4 celdas
+//   "turtle"                   celda de tortuga visible (con escamas)
+//   "turtle-sub"               celda de tortuga sumergida (solo contorno, sin glow)
+type SpriteKey = string;
+type Sprite = { canvas: HTMLCanvasElement; pad: number }; // pad = glow * 2 (px)
+type SpriteCache = Partial<Record<SkinId, Map<SpriteKey, Sprite>>>;
+
 // ── Carriles ──────────────────────────────────────────────────────────────────
 const TURTLE_VISIBLE_MS = 3000;
 const TURTLE_SUBMERGED_MS = 1500;
@@ -823,7 +834,50 @@ export default function FroggerGame({
       ctx.drawImage(bg, 0, 0);
     }
 
+    // ── Sprites cacheados ──────────────────────────────────────────────
+    // Cada variante se pinta una vez por skin en un canvas offscreen de
+    // (w + 2·pad) × (CELL + 2·pad), con el glow aplicado ahí, y por frame se
+    // copia con drawImage(sprite.canvas, px - pad, py - pad).
+    const spriteCache: SpriteCache = {};
+
+    function buildSprite(
+      p: SkinPalette,
+      w: number,
+      paint: (g: CanvasRenderingContext2D, px: number, py: number) => void,
+    ): Sprite {
+      const pad = p.glow * 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = w + pad * 2;
+      canvas.height = CELL + pad * 2;
+      const g = canvas.getContext("2d");
+      if (g) paint(g, pad, pad);
+      return { canvas, pad };
+    }
+
+    function getSprite(
+      skinId: SkinId,
+      key: SpriteKey,
+      build: () => Sprite,
+    ): Sprite {
+      let sprites = spriteCache[skinId];
+      if (!sprites) {
+        sprites = new Map();
+        spriteCache[skinId] = sprites;
+      }
+      let sprite = sprites.get(key);
+      if (!sprite) {
+        sprite = build();
+        sprites.set(key, sprite);
+      }
+      return sprite;
+    }
+
+    function blitSprite(sprite: Sprite, px: number, py: number) {
+      ctx.drawImage(sprite.canvas, px - sprite.pad, py - sprite.pad);
+    }
+
     function drawCar(
+      g: CanvasRenderingContext2D,
       p: SkinPalette,
       px: number,
       py: number,
@@ -831,24 +885,25 @@ export default function FroggerGame({
       color: string,
     ) {
       // Ruedas
-      ctx.fillStyle = p.wheel;
+      g.fillStyle = p.wheel;
       for (const wx of [px + 9, px + w - 9]) {
-        ctx.beginPath();
-        ctx.arc(wx, py + 8, 5, 0, Math.PI * 2);
-        ctx.arc(wx, py + CELL - 8, 5, 0, Math.PI * 2);
-        ctx.fill();
+        g.beginPath();
+        g.arc(wx, py + 8, 5, 0, Math.PI * 2);
+        g.arc(wx, py + CELL - 8, 5, 0, Math.PI * 2);
+        g.fill();
       }
       // Carrocería
-      ctx.fillStyle = color;
-      setGlow(p, color);
-      ctx.fillRect(px + 3, py + 9, w - 6, CELL - 18);
-      clearGlow();
+      g.fillStyle = color;
+      setGlow(p, color, g);
+      g.fillRect(px + 3, py + 9, w - 6, CELL - 18);
+      clearGlow(g);
       // Parabrisas
-      ctx.fillStyle = p.windshield;
-      ctx.fillRect(px + w / 2 - 4, py + 12, 8, CELL - 24);
+      g.fillStyle = p.windshield;
+      g.fillRect(px + w / 2 - 4, py + 12, 8, CELL - 24);
     }
 
     function drawTruck(
+      g: CanvasRenderingContext2D,
       p: SkinPalette,
       px: number,
       py: number,
@@ -856,30 +911,40 @@ export default function FroggerGame({
       dir: 1 | -1,
     ) {
       // Ruedas
-      ctx.fillStyle = p.wheel;
+      g.fillStyle = p.wheel;
       for (let wx = px + 10; wx < px + w - 4; wx += 22) {
-        ctx.beginPath();
-        ctx.arc(wx, py + 7, 5, 0, Math.PI * 2);
-        ctx.arc(wx, py + CELL - 7, 5, 0, Math.PI * 2);
-        ctx.fill();
+        g.beginPath();
+        g.arc(wx, py + 7, 5, 0, Math.PI * 2);
+        g.arc(wx, py + CELL - 7, 5, 0, Math.PI * 2);
+        g.fill();
       }
       // Remolque
-      ctx.fillStyle = p.truck;
-      setGlow(p, p.truck);
-      ctx.fillRect(px + 2, py + 7, w - 4, CELL - 14);
-      clearGlow();
+      g.fillStyle = p.truck;
+      setGlow(p, p.truck, g);
+      g.fillRect(px + 2, py + 7, w - 4, CELL - 14);
+      clearGlow(g);
       // Cabina en el frente (según la dirección de avance)
       const cabW = 22;
       const cabX = dir === 1 ? px + w - 2 - cabW : px + 2;
-      ctx.fillStyle = p.truckCab;
-      ctx.fillRect(cabX, py + 5, cabW, CELL - 10);
-      ctx.fillStyle = p.windshield;
-      ctx.fillRect(
-        dir === 1 ? cabX + cabW - 7 : cabX + 2,
-        py + 9,
-        5,
-        CELL - 18,
+      g.fillStyle = p.truckCab;
+      g.fillRect(cabX, py + 5, cabW, CELL - 10);
+      g.fillStyle = p.windshield;
+      g.fillRect(dir === 1 ? cabX + cabW - 7 : cabX + 2, py + 9, 5, CELL - 18);
+    }
+
+    function buildCarSprite(p: SkinPalette, colorIndex: number): Sprite {
+      return buildSprite(p, CELL, (g, px, py) =>
+        drawCar(g, p, px, py, CELL, p.cars[colorIndex]),
       );
+    }
+
+    function buildTruckSprite(
+      p: SkinPalette,
+      width: number,
+      dir: 1 | -1,
+    ): Sprite {
+      const w = width * CELL;
+      return buildSprite(p, w, (g, px, py) => drawTruck(g, p, px, py, w, dir));
     }
 
     function drawLog(p: SkinPalette, px: number, py: number, w: number) {
@@ -941,16 +1006,25 @@ export default function FroggerGame({
       }
     }
 
-    function drawLanes(p: SkinPalette) {
+    function drawLanes(skinId: SkinId, p: SkinPalette) {
       for (const lane of lanes) {
         const py = lane.row * CELL;
         lane.entities.forEach((e, i) => {
           const px = e.x * CELL;
           const w = e.width * CELL;
           if (e.type === "car") {
-            drawCar(p, px, py, w, p.cars[(lane.row + i) % p.cars.length]);
+            const colorIndex = (lane.row + i) % p.cars.length;
+            const sprite = getSprite(skinId, `car:${colorIndex}`, () =>
+              buildCarSprite(p, colorIndex),
+            );
+            blitSprite(sprite, px, py);
           } else if (e.type === "truck") {
-            drawTruck(p, px, py, w, lane.dir);
+            const sprite = getSprite(
+              skinId,
+              `truck:${e.width}:${lane.dir}`,
+              () => buildTruckSprite(p, e.width, lane.dir),
+            );
+            blitSprite(sprite, px, py);
           } else if (e.type === "log") {
             drawLog(p, px, py, w);
           } else {
@@ -1071,7 +1145,7 @@ export default function FroggerGame({
       const palette = SKIN_PALETTES[skinId];
       drawBackground(skinId, palette);
       drawFilledGoals(palette);
-      drawLanes(palette);
+      drawLanes(skinId, palette);
       drawFrog(palette);
       drawHud(palette);
     }
