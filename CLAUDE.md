@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Arcade Vault — a platform for playing games online and competing for high scores (per README.md, in Spanish). Beyond the initial `create-next-app` scaffold: it now has a real Supabase-backed game catalog, a leaderboard, four playable games, a simulated login, and a contact form that sends email via Resend.
+Arcade Vault — a platform for playing games online and competing for high scores (per README.md, in Spanish). Beyond the initial `create-next-app` scaffold: it now has a real Supabase-backed game catalog, a leaderboard, five playable games, a simulated login, and a contact form that sends email via Resend.
 
 ## Spec Driven Design
 
@@ -14,9 +14,10 @@ This repo follows Spec Driven Design via the `Klerith/fernando-skills` package, 
 
 - `/spec <description>` — clarifies a feature through questions, then writes `specs/NN-slug.md` in `Draft` state. Never writes code.
 - `/spec-impl <NN-slug>` — only runs on a spec whose state means "Approved". Creates/switches to branch `spec-NN-slug` (unless `specs/.spec-config.yml` sets `AutoCreateBranch: false`), then implements the plan step by step, pausing for review after each step. Never commits automatically.
+- `/spec-impl-game <NN-slug>` — project-specific copy of `/spec-impl` (`.claude/skills/spec-impl-game/`) for specs that implement or modify a catalog game. Same phases and rules (Approved-only, `spec-NN-slug` branch, step-by-step pauses, never commits), plus an upfront check that the spec maps to a `GAME_ENGINES` id (otherwise it stops and points to `/spec-impl`). After the plan is done it runs `skin-designer` and then `mobile-porter` on that game — sequentially, never in parallel — pausing for review after each agent. Changes to `/spec-impl` are not inherited automatically; keep both in sync by hand.
 - `/add-game <carpeta en references/started-games>` — project-specific skill (`.claude/skills/add-game/`) that investigates a source game, reconciles it against the Supabase `games` catalog, and generates a `Draft` spec ready for `/spec-impl`. It never writes app code or touches Supabase beyond read-only queries. Read `.claude/skills/add-game/recipe.md` for the established game-engine component contract before touching anything under `components/games/`.
 
-Existing specs live in `specs/01` through `specs/10`, covering: MVP static screens, home page, contact email, Supabase connection, the leaderboard/games-table migration off hardcoded data, and one real game port per spec (Asteroids, Tetris, Arkanoid, Snake). Read the two most recent specs before writing a new one — they set the current conventions and language (Spanish).
+Existing specs live in `specs/01` through `specs/14`, covering: MVP static screens, home page, contact email, Supabase connection, the leaderboard/games-table migration off hardcoded data, one real game port per spec (Asteroids, Tetris, Arkanoid, Snake), Asteroids skins (11), touch controls (12, 13) and Frogger/game-screen performance (14). Game-jam specs live under `specs/game-jam/<game-id>/` (Frogger: `specs/game-jam/frogger/01-frogger.md`). Read the two most recent specs before writing a new one — they set the current conventions and language (Spanish).
 
 ## Skills
 
@@ -48,6 +49,30 @@ Usa siempre /frontend-design para diseñar la interfaz de usuario.
   por juego en `references/game-themes.md` (una fila por id, estilo `references/implemented-games.md`) y
   mantiene su propio historial de diagnósticos/implementaciones en `references/skin-designer-memory.md`
   para no repetir análisis ya hechos sobre el mismo juego.
+- `mobile-porter` (`.claude/agents/mobile-porter.md`) — subagente que revisa si un juego dado se puede
+  jugar bien en un celular/tablet táctil (sin romper la experiencia de teclado en la web) contra un
+  checklist de 9 puntos derivado de `specs/12-asteroids-touch-controls.md`: detección `pointer: coarse`,
+  overlay de botones conectado a la misma ruta de input que el teclado, multi-touch por
+  `Touch.identifier`, aviso de orientación (elegida según la forma del canvas), ocultar/mostrar persistido
+  en `<gameId>-touch-hidden`, colores por skin, sin solapes con HUD/`<select>`, y guarda de pausa. Si el
+  diagnóstico da `Sin soporte` o `Parcial`, implementa directamente en el único componente del juego
+  confirmado generalizando el patrón de `AsteroidsGame.tsx`. Mismas restricciones que `skin-designer`:
+  nunca toca `GamePlayer.tsx`, `lib/game-engines.ts`, `GameEngineProps`, otro juego, `specs/`, ni commitea;
+  no tiene herramientas de navegador, así que la prueba en celular queda para el usuario. Registra el
+  estado por juego en `references/mobile-support.md` y su historial en `references/mobile-porter-memory.md`.
+  Invócalo con "revisa el mobile de X", "el juego X se puede jugar en el celular" o `@mobile-porter`.
+- `game-performance-booster` (`.claude/agents/game-performance-booster.md`) — subagente que recibe el `id`
+  de un juego y lo audita contra un checklist de 9 puntos derivado de `specs/14-frogger-performance.md`:
+  contador `?debug=fps` sin `setState`, fondo estático cacheado por skin en canvas offscreen, sin
+  `shadowBlur` ni `ctx.filter` por entidad por frame (sprites con glow/filtro horneado y `pad = glow * 2`),
+  cachés locales del loop indexadas por `SkinId`, sin renders de React ni callbacks por frame, un solo loop
+  con cleanup, reglas CSS `body:has(.av-player)` presentes (solo las verifica) y ≥55 FPS con CPU 4× en todos
+  los skins. Mide antes/después con Playwright (requiere `npm run dev` corriendo) y, si el diagnóstico da
+  `Con problemas` o `Parcial`, implementa en el único componente del juego confirmado generalizando el
+  patrón de `FroggerGame.tsx` (`buildBackground`/`buildSprite`/`getSprite`/`blitSprite`). Mismas
+  restricciones que `mobile-porter` (además nunca toca `app/` ni `.css`). Registra las mediciones en
+  `references/performance.md` y su historial en `references/game-performance-booster-memory.md`. Invócalo
+  con "revisa el performance de X", "el juego X se traba" o `@game-performance-booster`.
 
 ## Formatting hook
 
@@ -83,7 +108,7 @@ Usa siempre /frontend-design para diseñar la interfaz de usuario.
 
 ### Games (`components/games/<slug>/<Name>Game.tsx`)
 
-Four games are ported and registered in `GAME_ENGINES`, each a canvas-based component implementing the shared `GameEngineProps` contract (`paused`, `onScoreChange`, `onLivesChange?`, `onLevelChange?`, `onGameOver`):
+Five games are ported and registered in `GAME_ENGINES`, each a canvas-based component implementing the shared `GameEngineProps` contract (`paused`, `onScoreChange`, `onLivesChange?`, `onLevelChange?`, `onGameOver`):
 
 | Catalog id (`games.id`)    | Component                                      | Has lives |
 | -------------------------- | ---------------------------------------------- | --------- |
@@ -91,6 +116,9 @@ Four games are ported and registered in `GAME_ENGINES`, each a canvas-based comp
 | `caida` (Tetris)           | `components/games/tetris/TetrisGame.tsx`       | no        |
 | `bloque-buster` (Arkanoid) | `components/games/arkanoid/ArkanoidGame.tsx`   | yes       |
 | `serpentina` (Snake)       | `components/games/snake/SnakeGame.tsx`         | no        |
+| `ranaria` (Frogger)        | `components/games/frogger/FroggerGame.tsx`     | yes       |
+
+Per-game status registries (one row per id) live in `references/`: `game-themes.md` (skins), `mobile-support.md` (touch) and `performance.md` (FPS measurements). `FroggerGame.tsx` is the reference implementation for canvas performance (offscreen background/sprite caches per skin, `?debug=fps` counter) — see `specs/14-frogger-performance.md` and the `game-performance-booster` agent.
 
 Games with external assets (sprites/sounds, e.g. Arkanoid's spritesheet, Snake's fruit sprites) serve them from `public/games/<slug>/` — Next only serves static files from `public/`, never from `references/`. Source games being ported live under `references/started-games/` and are read-only reference material for `/add-game`, never imported at runtime.
 
