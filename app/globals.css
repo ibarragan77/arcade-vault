@@ -1017,6 +1017,27 @@ a {
   margin: 32px auto;
   padding: 0 24px 64px;
 }
+
+/* Pantalla de juego (/juegos/[id]/jugar): se apagan los efectos globales que
+   obligan a recomponer la página en cada frame del canvas (SPEC 14). Fuera de
+   esta pantalla el sitio se ve igual. Sin soporte de :has() las reglas se
+   ignoran y todo queda como antes. */
+body:has(.av-player) .av-bg::before {
+  animation: none; /* grilla quieta */
+}
+body:has(.av-player) .av-noise {
+  display: none;
+}
+body:has(.av-player) .av-bg::after {
+  /* Sobre --bg (#0a0a0f), `overlay` con blanco al 3% × 0.6 casi no aclara
+     (< 1/255). En `normal` la opacidad equivalente es ~0.03. */
+  mix-blend-mode: normal;
+  opacity: 0.03;
+}
+.av-player .crt-screen::after {
+  /* Negro al 18%: en `normal` da exactamente dst × 0.82, igual que `multiply`. */
+  mix-blend-mode: normal;
+}
 .player-hud {
   display: flex;
   gap: 16px;
