@@ -190,6 +190,54 @@ type SpriteCache = Partial<Record<SkinId, Map<SpriteKey, Sprite>>>;
 | Las mediciones varían entre corridas y entre máquinas.                                                                                         | Siempre en las mismas condiciones (30 s de juego activo, misma pestaña sin extensiones, throttling 4×), anotando la máquina y el navegador en _Notas_.                                                          |
 | En la máquina del usuario, el cuello de botella podría estar en otro lado (por ejemplo, la composición de la página) y no alcanzar los 55 FPS. | El contador separa ms de `update` y de `draw` del FPS total. Si `draw` es bajo y el FPS sigue bajo, el resto del costo es de composición, y se documenta en `references/performance.md` para un spec siguiente. |
 
+## Hallazgos y soluciones aplicadas
+
+Registro de lo que se encontró al implementar este spec (rama `spec-14-frogger-performance`, commits `79e85b0` a `f85e468`) y de cómo se resolvió, para futuros specs de performance. Las mediciones completas están en `references/performance.md`.
+
+### Hallazgos
+
+1. **La traba no se reprodujo en la máquina de pruebas.** En la Máquina A (Windows 11, RTX 4060 Ti, Chromium 154 vía Playwright, monitor de 120 Hz), Frogger ya iba a ~120 FPS en los 3 skins **antes** del cambio, incluso con CPU 4×. El problema reportado por el usuario sigue sin medirse en su propio Chrome ni en su celular (columnas `pendiente`).
+2. **`draw()` no era caro en CPU.** La línea base daba `draw` ≈ 0.23–0.30 ms sin throttling y ≈ 1.2–1.3 ms con CPU 4×. `update()` es despreciable (0.00 ms).
+3. **El ms de `draw` no mide todo el costo.** `performance.now()` alrededor de `draw()` solo mide la CPU emitiendo comandos de canvas. El raster del `shadowBlur` en la GPU y la composición de la página (`mix-blend-mode`, animaciones CSS) no entran en ese número: solo se reflejan en el FPS. Por eso la métrica que decide es el FPS, no el ms de `draw`.
+4. **"Frame rendering stats" de DevTools no se puede leer de forma automática.** Para la línea base de los otros juegos se reemplazó por un contador de `requestAnimationFrame` inyectado en la página (FPS cada 500 ms durante 30 s, descartando las muestras posteriores al modal de fin de partida). Mide lo mismo: los frames que el navegador llega a producir.
+5. **Arkanoid `neon` es el único caso con pérdida real de frames.** Da ~101 FPS (mín. 96) sobre 120, **igual con y sin throttling**, así que el costo no es de CPU. Apunta al `ctx.filter` con `drop-shadow` del skin `neon`. Sigue por encima de 55 FPS, pero queda como candidato a su propio spec.
+6. **Algunas líneas base son cortas.** Sin input, Arkanoid termina a los ~5.5 s y Snake choca a los ~2.5 s, así que sus muestras son de 5 s y 2 s, no de 30 s. Hay que repetirlas con alguien jugando.
+
+### Soluciones aplicadas
+
+| Paso | Commit    | Solución                                                                                                                                                                                                                                                                                                                                                 |
+| ---- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `79e85b0` | Contador `?debug=fps` en `FroggerGame.tsx`. La URL se lee una vez al montar; `debugFps` (estado) decide si se monta el `<div>` y `debugFpsRef` le dice al loop si debe medir. El texto se escribe con `textContent` vía `fpsTextRef`, sin `setState`. Sin el parámetro, el loop ni siquiera llama a `performance.now()`.                                 |
+| 2    | `91b8df7` | Nuevo `references/performance.md` con la línea base de Frogger en los 3 skins, reportada como `promedio (mínimo)`.                                                                                                                                                                                                                                       |
+| 3    | `b362c3f` | `buildBackground(p)` pinta zonas, bocas (con su borde con glow) y líneas discontinuas en un canvas offscreen `W`×`H`. `drawBackground(skinId, p)` lo busca o lo crea en `BackgroundCache` y hace un único `drawImage`.                                                                                                                                   |
+| 4    | `791d102` | Mecanismo genérico de sprites: `buildSprite(p, w, paint)` crea un canvas de `(w + 2·pad) × (CELL + 2·pad)` con `pad = glow * 2`; `getSprite(skinId, key, build)` lo cachea en `SpriteCache`; `blitSprite()` lo dibuja en `px - pad, py - pad`. `drawCar`/`drawTruck` reciben ahora el contexto destino `g`, y `setGlow`/`clearGlow` aceptan un `target`. |
+| 5    | `a6d9284` | Lo mismo para troncos (`log:<width>`) y tortugas. `drawTurtles` se reemplazó por `drawTurtleCell` (una sola celda), cacheada como `turtle` y `turtle-sub`; un grupo de N tortugas son N `drawImage`. `drawLanes()` quedó sin ningún `shadowBlur`.                                                                                                        |
+| 6    | `e47896b` | Reglas en `app/globals.css` con `body:has(.av-player)`: grilla sin animación, `.av-noise` oculto, `.av-bg::after` en `normal` con `opacity: 0.03` (en `overlay` sobre `#0a0a0f` el blanco al 3 % × 0.6 casi no aclaraba, < 1/255) y `.crt-screen::after` en `normal` (negro al 18 % da exactamente `dst × 0.82`, igual que `multiply`).                  |
+| 7    | `e1452ed` | Mediciones "después" de Frogger y línea base de `asteroides`, `caida`, `bloque-buster` y `serpentina`.                                                                                                                                                                                                                                                   |
+
+Detalles que conviene repetir en otros juegos:
+
+- Las cachés viven como variables locales del `useEffect` del loop y se indexan por `SkinId`. `draw()` lee `skinRef.current` una sola vez y pasa el mismo `skinId` a fondo y entidades, así que el cambio de skin no deja ningún frame con el skin anterior.
+- Las funciones de dibujo reciben el contexto destino como parámetro. Así el mismo código pinta en vivo o en un canvas offscreen, y el aspecto se mantiene idéntico.
+- Con `clasico` y `retro`, `glow = 0` y por lo tanto `pad = 0`: los sprites ocupan exactamente el tamaño de la entidad.
+
+### Resultado
+
+| Skin      | `draw` antes (4×) | `draw` después (4×) | Reducción (4×) | FPS después (4×) |
+| --------- | ----------------- | ------------------- | -------------- | ---------------- |
+| `clasico` | 0.30 ms (1.29 ms) | 0.10 ms (0.73 ms)   | −67 % (−43 %)  | 120 (mín. 118)   |
+| `neon`    | 0.30 ms (1.28 ms) | 0.11 ms (0.77 ms)   | −63 % (−40 %)  | 120 (mín. 110)   |
+| `retro`   | 0.23 ms (1.20 ms) | 0.10 ms (0.70 ms)   | −57 % (−42 %)  | 120 (mín. 120)   |
+
+- El criterio de ≥55 FPS con CPU 4× se cumple en los 3 skins en la Máquina A, pero ya se cumplía antes del cambio.
+- La mejora concreta es menos trabajo de CPU por frame (−40 % a −67 % en `draw`) y una sola pasada de `shadowBlur` por frame (la rana) en lugar de ~50.
+
+### Pendientes
+
+- Medir Frogger en el Chrome habitual del usuario, donde se reportó la traba, y en su celular. Si ahí sigue por debajo de 55 FPS con `draw` bajo, el costo restante es de composición y va en un spec siguiente.
+- Repetir la línea base de Arkanoid y Snake con alguien jugando, para tener 30 s de muestra.
+- Spec propio para el `ctx.filter` con `drop-shadow` de Arkanoid `neon`.
+
 ## What is **not** in this spec
 
 - Optimizar Asteroids, Tetris, Arkanoid o Snake (solo se miden).
