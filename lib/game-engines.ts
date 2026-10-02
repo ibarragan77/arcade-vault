@@ -3,6 +3,7 @@ import AsteroidsGame from "@/components/games/asteroids/AsteroidsGame";
 import TetrisGame from "@/components/games/tetris/TetrisGame";
 import ArkanoidGame from "@/components/games/arkanoid/ArkanoidGame";
 import SnakeGame from "@/components/games/snake/SnakeGame";
+import FroggerGame from "@/components/games/frogger/FroggerGame";
 
 export type GameEngineProps = {
   paused: boolean;
@@ -22,4 +23,5 @@ export const GAME_ENGINES: Record<string, GameEngineEntry> = {
   caida: { Component: TetrisGame, hasLives: false },
   "bloque-buster": { Component: ArkanoidGame, hasLives: true },
   serpentina: { Component: SnakeGame, hasLives: false },
+  ranaria: { Component: FroggerGame, hasLives: true },
 };
