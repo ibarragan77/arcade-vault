@@ -18,8 +18,8 @@ export async function createClient() {
               cookieStore.set(name, value, options),
             );
           } catch {
-            // setAll llamado desde un Server Component sin proxy de sesión; se puede ignorar
-            // porque este spec no maneja refresco de sesión todavía (ver Out of scope).
+            // setAll llamado desde un Server Component, donde no se pueden escribir cookies;
+            // se puede ignorar porque proxy.ts ya refresca la sesión en cada request.
           }
         },
       },

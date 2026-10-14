@@ -58,7 +58,14 @@ export default function GamePlayer({ game }: { game: Game }) {
     setSaveError(false);
     try {
       const supabase = createClient();
-      await saveScore(supabase, { game: game.id, score, name });
+      // Con sesión, el nombre es siempre el username del perfil y el puntaje queda vinculado
+      // al usuario; sin sesión, se guarda como invitado con el nombre escrito.
+      await saveScore(supabase, {
+        game: game.id,
+        score,
+        name: user ? user.name : name,
+        userId: user?.id,
+      });
       setSaved(true);
     } catch {
       setSaveError(true);
@@ -171,6 +178,10 @@ export default function GamePlayer({ game }: { game: Game }) {
                     setName(e.target.value.toUpperCase().slice(0, 10))
                   }
                   placeholder="TUS INICIALES"
+                  readOnly={!!user}
+                  title={
+                    user ? "Con sesión iniciada se usa tu usuario" : undefined
+                  }
                 />
                 <button className="btn yellow" onClick={handleSaveScore}>
                   GUARDAR PUNTUACIÓN
