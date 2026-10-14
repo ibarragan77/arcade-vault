@@ -1,6 +1,6 @@
 # SPEC 19 — Privilegios mínimos de tablas y validación de endpoints
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 03, SPEC 04, SPEC 06, SPEC 17
 > **Date:** 2026-10-14
 > **Objective:** Cerrar los hallazgos 2, 3 y 4 de la auditoría de seguridad dejando a `anon`/`authenticated` solo con los privilegios que la app usa, haciendo que `/api/supabase-health` no filtre errores y validando tipo, longitud y saltos de línea en `/api/contact`.
