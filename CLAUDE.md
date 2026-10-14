@@ -1,100 +1,93 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este archivo da guía a Claude Code (claude.ai/code) para trabajar con el código de este repositorio.
 
 @AGENTS.md
 
-## Project
+## Proyecto
 
-Arcade Vault — a platform for playing games online and competing for high scores (per README.md, in Spanish). Beyond the initial `create-next-app` scaffold: it now has a real Supabase-backed game catalog, a leaderboard, four playable games, a simulated login, and a contact form that sends email via Resend.
+Arcade Vault — una plataforma para jugar online y competir por altos puntajes (según el README.md, en español). Más allá del scaffold inicial de `create-next-app`, ahora tiene un catálogo de juegos real respaldado por Supabase, un leaderboard, cinco juegos jugables, un login simulado y un formulario de contacto que envía correo con Resend.
 
 ## Spec Driven Design
 
-This repo follows Spec Driven Design via the `Klerith/fernando-skills` package, already installed under `.claude/skills/`:
+Este repo sigue Spec Driven Design mediante el paquete `Klerith/fernando-skills`, ya instalado en `.claude/skills/`:
 
-- `/spec <description>` — clarifies a feature through questions, then writes `specs/NN-slug.md` in `Draft` state. Never writes code.
-- `/spec-impl <NN-slug>` — only runs on a spec whose state means "Approved". Creates/switches to branch `spec-NN-slug` (unless `specs/.spec-config.yml` sets `AutoCreateBranch: false`), then implements the plan step by step, pausing for review after each step. Never commits automatically.
-- `/add-game <carpeta en references/started-games>` — project-specific skill (`.claude/skills/add-game/`) that investigates a source game, reconciles it against the Supabase `games` catalog, and generates a `Draft` spec ready for `/spec-impl`. It never writes app code or touches Supabase beyond read-only queries. Read `.claude/skills/add-game/recipe.md` for the established game-engine component contract before touching anything under `components/games/`.
+- `/spec <descripción>` — aclara una funcionalidad con preguntas y luego escribe `specs/NN-slug.md` en estado `Draft`. Nunca escribe código.
+- `/spec-impl <NN-slug>` — solo corre sobre un spec cuyo estado signifique "Approved". Crea/cambia a la rama `spec-NN-slug` (salvo que `specs/.spec-config.yml` tenga `AutoCreateBranch: false`) e implementa el plan paso a paso, pausando para revisión después de cada paso. Nunca commitea automáticamente.
+- `/spec-impl-game <NN-slug>` — copia específica del proyecto de `/spec-impl` (`.claude/skills/spec-impl-game/`) para specs que implementan o modifican un juego del catálogo. Mismas fases y reglas (solo Approved, rama `spec-NN-slug`, pausas por paso, nunca commitea), más una verificación previa de que el spec corresponda a un id de `GAME_ENGINES` (si no, se detiene y apunta a `/spec-impl`). Al terminar el plan ejecuta `skin-designer` y luego `mobile-porter` sobre ese juego — en secuencia, nunca en paralelo — con una pausa de revisión después de cada agente. Los cambios en `/spec-impl` no se heredan automáticamente; mantén ambos sincronizados a mano.
+- `/add-game <carpeta en references/started-games>` — skill específico del proyecto (`.claude/skills/add-game/`) que investiga un juego fuente, lo reconcilia con el catálogo `games` de Supabase y genera un spec `Draft` listo para `/spec-impl`. Nunca escribe código de la app ni toca Supabase más allá de consultas de solo lectura. Lee `.claude/skills/add-game/recipe.md` para conocer el contrato establecido de los componentes de motor de juego antes de tocar algo en `components/games/`.
 
-Existing specs live in `specs/01` through `specs/10`, covering: MVP static screens, home page, contact email, Supabase connection, the leaderboard/games-table migration off hardcoded data, and one real game port per spec (Asteroids, Tetris, Arkanoid, Snake). Read the two most recent specs before writing a new one — they set the current conventions and language (Spanish).
+Los specs existentes están en `specs/01` a `specs/14` y cubren: pantallas estáticas del MVP, home, correo de contacto, conexión a Supabase, la migración del leaderboard/tabla de juegos fuera de datos hardcodeados (06), un port de juego real por spec (Asteroids 05, Tetris 08, Arkanoid 09, Snake 10), un fix de teclado de Asteroids (07), skins de Asteroids (11), controles táctiles (12, más la 13 — gamepad MK-II, aún `Draft`, `TouchGamepad` todavía no construido) y performance de Frogger/pantalla de juego (14). Los specs de game jam están en `specs/game-jam/<game-id>/`: `frogger/01-frogger.md` (`Approved`, implementado como `ranaria`) y `ranaria/opcion-a-*.md` / `opcion-b-*.md` (dos alternativas `Draft` del primer jam). Lee los dos specs más recientes antes de escribir uno nuevo — fijan las convenciones y el idioma actuales (español).
 
 ## Skills
 
 Usa siempre /frontend-design para diseñar la interfaz de usuario.
 
+Skills del proyecto (`.claude/skills/`): `spec`, `spec-impl`, `spec-impl-game` y `add-game` (ver _Spec Driven Design_ arriba).
+
 ## Agentes
 
-- `game-planner` (`.claude/agents/game-planner.md`) — subagente de solo planificación que recomienda qué
-  juego conviene portar o agregar a continuación al catálogo (investiga Supabase `games`,
-  `lib/game-engines.ts`, `references/implemented-games.md` y `references/started-games/`). Nunca escribe
-  código de la app ni specs — el siguiente paso sigue siendo `/add-game` o `/spec`. Invócalo cuando se
-  pregunte "qué juego agregamos después" o se pida el agente explícitamente. Mantiene su propio historial
-  de recomendaciones en `references/game-planner-memory.md` para no repetir sugerencias ya rechazadas o
-  ya implementadas.
-- `skin-designer` (`.claude/agents/skin-designer.md`) — subagente que revisa si un juego dado tiene
-  implementados al menos tres skins (`neon`, `retro`, `clasico` como default) y si esas paletas funcionan
-  bien contra el fondo oscuro real del sitio (Arcade Vault no tiene modo claro). Siempre confirma el `id`
-  del juego contra Supabase/`GAME_ENGINES` antes de investigar, y usa `references/started-games/03-tetris`
-  solo como referencia secundaria del patrón mecánico de tema intercambiable — ese juego no trae los 3
-  skins pedidos, solo un toggle claro/oscuro. Si el diagnóstico da `Sin skins` o `Parcial`, ya no se
-  limita a recomendar `/spec`: implementa directamente los skins faltantes en el único componente del
-  juego confirmado, generalizando el patrón real de `specs/11-asteroids-skins.md` /
-  `components/games/asteroids/AsteroidsGame.tsx` (constantes `SkinId`/`SKIN_PALETTES`, `skinRef`,
-  persistencia en `localStorage`, overlay `<select>`). Nunca toca `GamePlayer.tsx`,
-  `lib/game-engines.ts`, `GameEngineProps`, otro componente de juego, ni escribe specs, y nunca commitea
-  sus propios cambios — deja el working tree para que el usuario lo pruebe en el navegador (el agente no
-  tiene herramientas de navegador). Invócalo cuando se pregunte "el juego X tiene sus tres skins", "revisa
-  los skins de X" o se pida el agente explícitamente (`@skin-designer`). Registra el estado real de skins
-  por juego en `references/game-themes.md` (una fila por id, estilo `references/implemented-games.md`) y
-  mantiene su propio historial de diagnósticos/implementaciones en `references/skin-designer-memory.md`
-  para no repetir análisis ya hechos sobre el mismo juego.
+Subagentes del proyecto en `.claude/agents/<nombre>.md` (ahí están el alcance, las restricciones y el checklist completos; léelo antes de invocarlos o modificarlos). Ninguno commitea sus cambios. Comparten reglas: confirman el `id` del juego contra Supabase/`GAME_ENGINES`, y nunca tocan `GamePlayer.tsx`, `lib/game-engines.ts`, `GameEngineProps` ni el componente de otro juego.
 
-## Formatting hook
+| Agente                     | Para qué                                                                                                   | Registro público / memoria                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `game-planner`             | Recomienda qué juego portar a continuación (solo planifica; luego `/add-game` o `/spec`).                  | `references/game-planner-memory.md`                                          |
+| `game-jam`                 | Dado un tema, propone un concepto y escribe dos specs `Draft` alternativos en `specs/game-jam/<game-id>/`. | `references/game-jam-memory.md`                                              |
+| `skin-designer`            | Revisa e implementa los 3 skins (`neon`, `retro`, `clasico`) de un juego (patrón spec 11).                 | `references/game-themes.md`, `references/skin-designer-memory.md`            |
+| `mobile-porter`            | Revisa e implementa controles táctiles de un juego (checklist de 9 puntos, patrón spec 12).                | `references/mobile-support.md`, `references/mobile-porter-memory.md`         |
+| `game-performance-booster` | Audita y optimiza FPS de un juego (checklist de 9 puntos, patrón spec 14 / Frogger).                       | `references/performance.md`, `references/game-performance-booster-memory.md` |
 
-`.claude/settings.json` registers a `PostToolUse` hook (`.claude/hooks/format-on-write.js`) that runs on every `Write`/`Edit` — it formats with Prettier and checks ESLint automatically. No need to manually run `npm run lint` after every edit for that reason alone, though it's still the way to check the whole project.
+Invócalos con lenguaje natural ("qué juego agregamos después", "revisa los skins / el mobile / el performance de X", "hagamos un game jam sobre X") o con `@<nombre>`. `game-planner` y `game-jam` nunca escriben código de la app; `game-jam` solo escribe specs. `skin-designer`, `mobile-porter` y `game-performance-booster` implementan en el único componente del juego y dejan el working tree sin commitear para que el usuario lo pruebe (no tienen herramientas de navegador, salvo el booster, que mide con Playwright y requiere `npm run dev`).
 
-## Architecture
+## Hook de formato
 
-- **Next.js 16.3.1 / React 19**, App Router only (`app/` directory), TypeScript, Tailwind CSS v4 (via `@tailwindcss/postcss`, configured through `app/globals.css`, no `tailwind.config.*` file).
-- Path alias `@/*` maps to the repo root (`tsconfig.json`).
-- **This Next.js version has breaking changes vs. training data.** Before writing routing/data-fetching code, check `node_modules/next/dist/docs/` (`01-app/` for App Router) for the current API — do not assume older Next.js conventions apply.
-- Notable App Router 16 convention already in use: route components take the global, auto-generated `PageProps<'/route'>` / `LayoutProps<'/route'>` helper types (see `app/layout.tsx`) instead of manually-typed `params`/`searchParams` props. These types require no import and are (re)generated by `next dev`, `next build`, or `next typegen`.
+`.claude/settings.json` registra un hook `PostToolUse` (`.claude/hooks/format-on-write.js`) que corre en cada `Write`/`Edit`: formatea con Prettier y revisa ESLint automáticamente. No hace falta correr `npm run lint` después de cada edición solo por eso, aunque sigue siendo la forma de revisar todo el proyecto.
 
-### Routes (`app/`)
+## Arquitectura
 
-- `/` (`app/page.tsx`) — home, reads the real catalog via `lib/games.ts`.
-- `/games` (`app/games/page.tsx` + `GamesGrid.tsx`) — Server Component catalog listing, backed by Supabase.
-- `/juegos/[id]` — game detail page (description, top scores, stats) via `getGame`/`getTopScores`/`getGameStats`.
-- `/juegos/[id]/jugar` — gameplay page; renders `GamePlayer.tsx`, which looks up the game's engine in `GAME_ENGINES` (see below) and falls back to a placeholder animation if none is registered.
-- `/salon` — leaderboard/hall of fame, reads real data from Supabase (no more simulated "your best score" section).
-- `/login` — simulated session only (see `lib/session.ts`), not real auth.
-- `/about` — static about page.
-- `/api/contact` — POST endpoint that validates a name/email/message body (with a honeypot `company` field) and sends mail via Resend.
-- `/api/supabase-health` — connectivity check endpoint for the Supabase setup.
+- **Next.js 16.3.1 / React 19**, solo App Router (directorio `app/`), TypeScript, Tailwind CSS v4 (vía `@tailwindcss/postcss`, configurado en `app/globals.css`, sin archivo `tailwind.config.*`).
+- El alias de ruta `@/*` apunta a la raíz del repo (`tsconfig.json`).
+- **Esta versión de Next.js tiene cambios incompatibles respecto a los datos de entrenamiento.** Antes de escribir código de rutas o de obtención de datos, consulta `node_modules/next/dist/docs/` (`01-app/` para App Router) para ver la API vigente — no asumas que aplican las convenciones antiguas de Next.js.
+- Convención notable de App Router 16 ya en uso: los componentes de ruta reciben los tipos auxiliares globales y autogenerados `PageProps<'/route'>` / `LayoutProps<'/route'>` (ver `app/layout.tsx`) en lugar de props `params`/`searchParams` tipadas a mano. Estos tipos no requieren import y los (re)generan `next dev`, `next build` o `next typegen`.
 
-### Data layer (`lib/`)
+### Rutas (`app/`)
 
-- `lib/data.ts` — shared static types only now (`Game`, `GameCategory`, `GameColor`, `CATS`). The hardcoded games catalog and simulated leaderboard have been removed from here — real data comes from Supabase.
-- `lib/supabase/client.ts` / `lib/supabase/server.ts` — Supabase client factories (`@supabase/ssr`), split for browser vs. server usage.
-- `lib/games.ts` — `getGames`/`getGame`, reading the `games` and `scores` tables and joining in `best`/`plays` stats per game.
-- `lib/scores.ts` — `saveScore`/`getTopScores`/`getGameStats` against the `scores` table.
-- `lib/game-engines.ts` — the `GAME_ENGINES` registry: `Record<gameId, { Component, hasLives }>`, mapping a Supabase `games.id` to its React game-engine component. This replaced an earlier one-off `isAsteroids` special case in `GamePlayer.tsx`. Adding a game means adding an entry here, not branching in `GamePlayer.tsx`.
-- `lib/session.ts` — `useSession()` hook backed by `localStorage`; **not real authentication**, just a client-side display-name simulation used to prefill the score-save form.
+- `/` (`app/page.tsx`) — home, lee el catálogo real vía `lib/games.ts`.
+- `/games` (`app/games/page.tsx` + `GamesGrid.tsx`) — listado del catálogo como Server Component, respaldado por Supabase.
+- `/juegos/[id]` — página de detalle del juego (descripción, mejores puntajes, estadísticas) vía `getGame`/`getTopScores`/`getGameStats`.
+- `/juegos/[id]/jugar` — página de juego; renderiza `GamePlayer.tsx`, que busca el motor del juego en `GAME_ENGINES` (ver abajo) y, si no hay ninguno registrado, cae a una animación placeholder.
+- `/salon` — leaderboard/salón de la fama, lee datos reales de Supabase (ya no hay sección simulada de "tu mejor puntaje").
+- `/login` — solo sesión simulada (ver `lib/session.ts`), no es autenticación real.
+- `/about` — página estática "acerca de".
+- `/api/contact` — endpoint POST que valida un body con nombre/email/mensaje (con un campo honeypot `company`) y envía correo vía Resend.
+- `/api/supabase-health` — endpoint de verificación de conectividad de la configuración de Supabase.
 
-### Games (`components/games/<slug>/<Name>Game.tsx`)
+### Capa de datos (`lib/`)
 
-Four games are ported and registered in `GAME_ENGINES`, each a canvas-based component implementing the shared `GameEngineProps` contract (`paused`, `onScoreChange`, `onLivesChange?`, `onLevelChange?`, `onGameOver`):
+- `lib/data.ts` — ahora solo tipos estáticos compartidos (`Game`, `GameCategory`, `GameColor`, `CATS`). El catálogo hardcodeado y el leaderboard simulado se eliminaron de aquí — los datos reales vienen de Supabase.
+- `lib/supabase/client.ts` / `lib/supabase/server.ts` — fábricas de clientes de Supabase (`@supabase/ssr`), separadas para navegador y servidor.
+- `lib/games.ts` — `getGames`/`getGame`, leen las tablas `games` y `scores` y agregan las estadísticas `best`/`plays` por juego.
+- `lib/scores.ts` — `saveScore`/`getTopScores`/`getGameStats` sobre la tabla `scores`.
+- `lib/game-engines.ts` — el registro `GAME_ENGINES`: `Record<gameId, { Component, hasLives }>`, que mapea un `games.id` de Supabase a su componente React de motor de juego. Reemplazó un caso especial anterior `isAsteroids` en `GamePlayer.tsx`. Agregar un juego implica agregar una entrada aquí, no ramificar en `GamePlayer.tsx`.
+- `lib/session.ts` — hook `useSession()` respaldado por `localStorage`; **no es autenticación real**, solo una simulación en el cliente del nombre a mostrar, usada para prellenar el formulario de guardado de puntaje.
 
-| Catalog id (`games.id`)    | Component                                      | Has lives |
-| -------------------------- | ---------------------------------------------- | --------- |
-| `asteroides`               | `components/games/asteroids/AsteroidsGame.tsx` | yes       |
-| `caida` (Tetris)           | `components/games/tetris/TetrisGame.tsx`       | no        |
-| `bloque-buster` (Arkanoid) | `components/games/arkanoid/ArkanoidGame.tsx`   | yes       |
-| `serpentina` (Snake)       | `components/games/snake/SnakeGame.tsx`         | no        |
+### Juegos (`components/games/<slug>/<Name>Game.tsx`)
 
-Games with external assets (sprites/sounds, e.g. Arkanoid's spritesheet, Snake's fruit sprites) serve them from `public/games/<slug>/` — Next only serves static files from `public/`, never from `references/`. Source games being ported live under `references/started-games/` and are read-only reference material for `/add-game`, never imported at runtime.
+Cinco juegos están portados y registrados en `GAME_ENGINES`, cada uno un componente basado en canvas que implementa el contrato compartido `GameEngineProps` (`paused`, `onScoreChange`, `onLivesChange?`, `onLevelChange?`, `onGameOver`):
 
-### External services
+| Id de catálogo (`games.id`) | Componente                                     | Tiene vidas |
+| --------------------------- | ---------------------------------------------- | ----------- |
+| `asteroides`                | `components/games/asteroids/AsteroidsGame.tsx` | sí          |
+| `caida` (Tetris)            | `components/games/tetris/TetrisGame.tsx`       | no          |
+| `bloque-buster` (Arkanoid)  | `components/games/arkanoid/ArkanoidGame.tsx`   | sí          |
+| `serpentina` (Snake)        | `components/games/snake/SnakeGame.tsx`         | no          |
+| `ranaria` (Frogger)         | `components/games/frogger/FroggerGame.tsx`     | sí          |
 
-- **Supabase** — `games` and `scores` tables, read/written via the clients above. Requires `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`).
-- **Resend** — transactional email for the contact form. Requires `RESEND_API_KEY` and `CONTACT_EMAIL_TO`.
+Los registros de estado por juego (una fila por id) viven en `references/`: `game-themes.md` (skins), `mobile-support.md` (táctil) y `performance.md` (mediciones de FPS). `FroggerGame.tsx` es la implementación de referencia de performance en canvas (cachés offscreen de fondo/sprites por skin, contador `?debug=fps`) — ver `specs/14-frogger-performance.md` y el agente `game-performance-booster`.
+
+Los juegos con assets externos (sprites/sonidos, p. ej. el spritesheet de Arkanoid o los sprites de frutas de Snake) los sirven desde `public/games/<slug>/` — Next solo sirve archivos estáticos desde `public/`, nunca desde `references/`. Los juegos fuente que se portan viven en `references/started-games/` y son material de referencia de solo lectura para `/add-game`, nunca se importan en runtime.
+
+### Servicios externos
+
+- **Supabase** — tablas `games` y `scores`, leídas/escritas mediante los clientes de arriba. Requiere `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (ver `.env.example`).
+- **Resend** — correo transaccional para el formulario de contacto. Requiere `RESEND_API_KEY` y `CONTACT_EMAIL_TO`.
