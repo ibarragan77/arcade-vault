@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import LogoutButton from "./LogoutButton";
 
+const PROVIDER_LABELS: Record<string, string> = {
+  email: "Correo y contraseña",
+  google: "Google",
+  github: "GitHub",
+};
+
 export default async function PerfilPage() {
   const supabase = await createClient();
   const {
@@ -16,6 +22,15 @@ export default async function PerfilPage() {
     .select("username")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Una cuenta puede tener varias identidades (correo + Google, etc.) por la vinculación automática.
+  const providers = [
+    ...new Set(
+      user.identities?.map((i) => i.provider) ??
+        (user.app_metadata.providers as string[] | undefined) ??
+        [],
+    ),
+  ].map((p) => PROVIDER_LABELS[p] ?? p);
 
   return (
     <div className="av-auth-wrap fade-in">
@@ -43,7 +58,13 @@ export default async function PerfilPage() {
           </div>
           <div className="profile-row">
             <span className="l">Correo electrónico</span>
-            <span className="v">{user.email}</span>
+            <span className="v">{user.email || "—"}</span>
+          </div>
+          <div className="profile-row">
+            <span className="l">Método de acceso</span>
+            <span className="v">
+              {providers.length > 0 ? providers.join(" · ") : "—"}
+            </span>
           </div>
         </div>
 

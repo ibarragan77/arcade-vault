@@ -1,6 +1,6 @@
 # SPEC 16 — Inicio de sesión con Google y GitHub (OAuth)
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 15, SPEC 04
 > **Date:** 2026-10-14
 > **Objective:** Activar el inicio de sesión y el registro con Google y GitHub mediante Supabase Auth (OAuth con PKCE), generando automáticamente un `username` válido y único para quien entra por primera vez y vinculando la identidad a la cuenta existente cuando el correo coincide.
