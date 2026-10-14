@@ -1,0 +1,18 @@
+# Memoria de security-guardian
+
+Historial de hallazgos de seguridad. Severidades: `Crítica`, `Alta`, `Media`, `Baja`, `Info`.
+Estados: `Abierto`, `Aceptado`, `Corregido`, `Falso positivo`. Solo se agregan filas; no se reescribe el historial.
+
+| Fecha      | Área     | Hallazgo                                                                     | Severidad | Estado   | Notas                                                    |
+| ---------- | -------- | ---------------------------------------------------------------------------- | --------- | -------- | -------------------------------------------------------- |
+| 2026-10-14 | Supabase | `auth_leaked_password_protection` desactivada                                | Media     | Aceptado | Requiere plan Pro; spec 17.                              |
+| 2026-10-14 | Supabase | Sin límite de signups por IP en el plan actual                               | Media     | Aceptado | Valor recomendado 10 peticiones / 5 min por IP; spec 17. |
+| 2026-10-14 | Supabase | `scores` acepta cualquier `score`/`name` desde el cliente (sin anti-trampas) | Media     | Aceptado | Fuera de alcance de specs 15 y 17.                       |
+| 2026-10-14 | App      | Sin Content-Security-Policy                                                  | Baja      | Aceptado | Spec 17 lo difiere a un spec propio.                     |
+| 2026-10-14 | App      | `/api/contact` sin rate limit propio                                         | Media     | Aceptado | Solo honeypot; spec 17 lo deja fuera.                    |
+| 2026-10-14 | Deps     | `npm audit --omit=dev`: 3 vulnerabilidades (1 crítica, 2 altas): `next@16.3.1` (RCE en Windows, RCE en Image Optimization con AVIF y en `next/og`, SSRF en imágenes, cache poisoning; rango 16.0.0 - 16.3.7), `sharp` y `source-map-js` | Crítica   | Abierto  | `next` exige actualizar a >=16.4.1 (`--force`); `sharp` y `source-map-js` con `npm audit fix`. Vía `/spec`. |
+| 2026-10-14 | Supabase | `anon` y `authenticated` tienen `TRUNCATE, TRIGGER, REFERENCES, DELETE, UPDATE, INSERT` sobre `games`, `scores` y `profiles` (privilegios por defecto) | Media     | Abierto  | RLS bloquea DELETE/UPDATE/INSERT, pero `TRUNCATE` no pasa por RLS; PostgREST no lo expone, por eso no hay vector directo. Revocar y dejar solo SELECT (+INSERT en `scores`). |
+| 2026-10-14 | App      | `/api/supabase-health` devuelve `error.message` y `String(err)` al cliente (público, sin auth) | Baja      | Abierto  | `app/api/supabase-health/route.ts:12,19`. Responder genérico y loguear en servidor. |
+| 2026-10-14 | App      | `/api/contact` sin límite de longitud en `name`/`msg` ni tope de tamaño; `name` va en el asunto sin sanear saltos de línea | Baja      | Abierto  | `app/api/contact/route.ts:20-40`. Es `text` plano (sin inyección HTML) y Resend sanea cabeceras, pero conviene validar tipo/longitud (un body con `name` no-string lanza excepción 500). |
+| 2026-10-14 | Supabase | `scores.name` limitado a 1-10 y `score >= 0`; sin tope máximo de `score`      | Info      | Aceptado | Riesgo conocido de anti-trampas (ya registrado arriba).  |
+| 2026-10-14 | Supabase | RLS activo en games/scores/profiles; políticas correctas; funciones SECURITY DEFINER sin EXECUTE para anon/authenticated; advisors solo con leaked password | Info      | Corregido | Verificado en vivo; `rls_auto_enable` ya revocado (migración `revoke_execute_rls_auto_enable`). |

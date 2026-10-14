@@ -1,6 +1,6 @@
 ## Checklist de seguridad básico
 
-Estado según SPEC 17 (2026-10-14).
+Estado según SPEC 17. Última verificación en vivo: 2026-10-14 (security-guardian).
 
 - [x] RLS: Row Level Security habilitado en ambas tablas: `games` y `scores` (también `profiles`)
 - [x] Minimum password length — mínimo 8 caracteres
@@ -22,6 +22,16 @@ const securityHeaders = [
 // En la config de Next.js:
 headers: async () => [{ source: "/(.*)", headers: securityHeaders }];
 ```
+
+## Verificado el 2026-10-14 (security-guardian)
+
+- [x] RLS en `games`, `scores` y `profiles`; políticas sin `true` en escritura (2026-10-14)
+- [x] `handle_new_user` y `rls_auto_enable`: `SECURITY DEFINER` con `search_path` fijo y sin EXECUTE para anon/authenticated (2026-10-14)
+- [x] Headers de seguridad confirmados con `curl -I` en localhost:3000 (2026-10-14)
+- [x] `/auth/confirm` y `/auth/callback`: destinos fijos, sin open redirect (2026-10-14)
+- [x] `/perfil` usa `getUser()`; sin XSS (`dangerouslySetInnerHTML`/`innerHTML`/`eval`), sin `target="_blank"`, `.env*` no versionado (2026-10-14)
+- [ ] `npm audit --omit=dev` limpio — FALLA: 1 crítica (`next`), 2 altas (`sharp`, `source-map-js`) (2026-10-14)
+- [ ] Privilegios de tabla mínimos para anon/authenticated — FALLA: tienen TRUNCATE/TRIGGER/REFERENCES (2026-10-14)
 
 ## Por el lado de Supabase:
 
