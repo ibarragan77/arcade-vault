@@ -8,14 +8,19 @@ export async function GET() {
     // "Auth session missing" es la respuesta esperada: todavía no hay login real
     // (fuera de alcance de este spec), no un error de conectividad.
     if (error && error.name !== "AuthSessionMissingError") {
+      console.error("[supabase-health]", error);
       return Response.json(
-        { ok: false, error: error.message },
+        { ok: false, error: "Servicio no disponible" },
         { status: 500 },
       );
     }
 
     return Response.json({ ok: true });
   } catch (err) {
-    return Response.json({ ok: false, error: String(err) }, { status: 500 });
+    console.error("[supabase-health]", err);
+    return Response.json(
+      { ok: false, error: "Servicio no disponible" },
+      { status: 500 },
+    );
   }
 }

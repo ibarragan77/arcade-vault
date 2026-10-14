@@ -31,7 +31,8 @@ headers: async () => [{ source: "/(.*)", headers: securityHeaders }];
 - [x] `/auth/confirm` y `/auth/callback`: destinos fijos, sin open redirect (2026-10-14)
 - [x] `/perfil` usa `getUser()`; sin XSS (`dangerouslySetInnerHTML`/`innerHTML`/`eval`), sin `target="_blank"`, `.env*` no versionado (2026-10-14)
 - [x] `npm audit --omit=dev` limpio — `next` y `eslint-config-next` a 16.4.1, `sharp` y `source-map-js` vía `npm audit fix` (spec 18, 2026-10-14)
-- [ ] Privilegios de tabla mínimos para anon/authenticated — FALLA: tienen TRUNCATE/TRIGGER/REFERENCES (2026-10-14)
+- [x] Privilegios de tabla mínimos para anon/authenticated — `games`/`profiles` solo SELECT; `scores` SELECT + INSERT; defaults de `postgres` en `public` cerrados (spec 19, 2026-10-14)
+- [x] Endpoints públicos sin fugas ni entradas sin validar — `/api/supabase-health` responde genérico; `/api/contact` valida tipo y longitud y sanea el asunto (spec 19, 2026-10-14)
 
 ## Por el lado de Supabase:
 

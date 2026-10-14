@@ -66,8 +66,8 @@ Invócalos con lenguaje natural ("qué juego agregamos después", "revisa los sk
 - `/auth/confirm` (`app/auth/confirm/route.ts`, GET) — recibe `token_hash` + `type` (`signup`/`recovery`/`email`) del enlace del correo, llama a `verifyOtp` y redirige a `/` o `/restablecer`; si falla, a `/login?error=enlace`.
 - `/auth/callback` (`app/auth/callback/route.ts`, GET) — retorno de Google/GitHub (OAuth con PKCE): recibe `code`, llama a `exchangeCodeForSession` y redirige a `/`; si falta el `code`, el proveedor devuelve error o el intercambio falla, a `/login?error=oauth`.
 - `/about` — página estática "acerca de".
-- `/api/contact` — endpoint POST que valida un body con nombre/email/mensaje (con un campo honeypot `company`) y envía correo vía Resend.
-- `/api/supabase-health` — endpoint de verificación de conectividad de la configuración de Supabase.
+- `/api/contact` — endpoint POST que valida un body con nombre/email/mensaje (con un campo honeypot `company`) y envía correo vía Resend. Exige strings y límites de longitud (`name` ≤ 80, `email` ≤ 254, `msg` ≤ 2000) y sanea `name` antes de usarlo en el asunto (spec 19).
+- `/api/supabase-health` — endpoint de verificación de conectividad de la configuración de Supabase; ante un fallo responde un error genérico y deja el detalle en el log del servidor (spec 19).
 
 ### Capa de datos (`lib/`)
 
@@ -98,5 +98,5 @@ Los juegos con assets externos (sprites/sonidos, p. ej. el spritesheet de Arkano
 
 ### Servicios externos
 
-- **Supabase** — tablas `games`, `scores` y `profiles` (`username` único, creado por el trigger `on_auth_user_created` al registrarse: usa el `username` del formulario o, con Google/GitHub, uno autogenerado (prefijo del nombre del proveedor + 4 dígitos); `scores.user_id` es nullable y la política RLS `scores_insert_guest_or_self` impide guardar a nombre de otro usuario) más Supabase Auth, todo mediante los clientes de arriba. Requiere `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (ver `.env.example`). La confirmación de correo, los enlaces y los proveedores OAuth dependen de ajustes del Dashboard documentados en el README.
+- **Supabase** — tablas `games`, `scores` y `profiles` (`username` único, creado por el trigger `on_auth_user_created` al registrarse: usa el `username` del formulario o, con Google/GitHub, uno autogenerado (prefijo del nombre del proveedor + 4 dígitos); `scores.user_id` es nullable y la política RLS `scores_insert_guest_or_self` impide guardar a nombre de otro usuario) más Supabase Auth, todo mediante los clientes de arriba. Privilegios mínimos (spec 19): `anon`/`authenticated` solo tienen `SELECT` en `games` y `profiles`, y `SELECT` + `INSERT` en `scores`; los privilegios por defecto de `postgres` en `public` están cerrados, así que toda tabla o secuencia nueva nace sin acceso y su migración debe hacer los `grant` que necesite además de las políticas RLS. Requiere `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (ver `.env.example`). La confirmación de correo, los enlaces y los proveedores OAuth dependen de ajustes del Dashboard documentados en el README.
 - **Resend** — correo transaccional para el formulario de contacto. Requiere `RESEND_API_KEY` y `CONTACT_EMAIL_TO`.
