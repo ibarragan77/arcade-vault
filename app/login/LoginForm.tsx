@@ -4,12 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { resendConfirmation, signIn, validateEmail } from "@/lib/auth";
+import OAuthButtons from "@/components/auth/OAuthButtons";
 import { useSession } from "@/lib/session";
 import { createClient } from "@/lib/supabase/client";
 
 type Notice = { kind: "error" | "info"; text: string };
 
-export default function LoginForm({ linkError }: { linkError: boolean }) {
+export default function LoginForm({
+  linkError,
+  oauthError,
+}: {
+  linkError: boolean;
+  oauthError: boolean;
+}) {
   const router = useRouter();
   const { loginAsGuest } = useSession();
   const [email, setEmail] = useState("");
@@ -21,7 +28,12 @@ export default function LoginForm({ linkError }: { linkError: boolean }) {
           kind: "error",
           text: "El enlace del correo no es válido o ya venció. Solicita uno nuevo.",
         }
-      : null,
+      : oauthError
+        ? {
+            kind: "error",
+            text: "No se pudo iniciar sesión con ese proveedor. Inténtalo de nuevo.",
+          }
+        : null,
   );
   const [needsConfirm, setNeedsConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -169,26 +181,7 @@ export default function LoginForm({ linkError }: { linkError: boolean }) {
         </button>
 
         <div className="auth-divider">O CONTINÚA CON</div>
-        <div className="social">
-          <button
-            className="btn ghost"
-            type="button"
-            disabled
-            aria-disabled="true"
-          >
-            ◆ GOOGLE
-            <span className="soon">PRÓXIMAMENTE</span>
-          </button>
-          <button
-            className="btn ghost"
-            type="button"
-            disabled
-            aria-disabled="true"
-          >
-            ▣ GITHUB
-            <span className="soon">PRÓXIMAMENTE</span>
-          </button>
-        </div>
+        <OAuthButtons />
 
         <div
           style={{

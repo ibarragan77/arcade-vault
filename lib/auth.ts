@@ -107,6 +107,21 @@ export async function signIn(
   return error ? mapError(error) : { ok: true };
 }
 
+export type OAuthProvider = "google" | "github";
+
+// Redirige el navegador al proveedor (PKCE); al volver, /auth/callback intercambia el `code`.
+// Solo devuelve resultado si falla antes de redirigir: en el caso exitoso la página se descarga.
+export async function signInWithOAuth(
+  supabase: SupabaseClient,
+  provider: OAuthProvider,
+): Promise<AuthResult> {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: `${window.location.origin}/auth/callback` },
+  });
+  return error ? mapError(error) : { ok: true };
+}
+
 export async function signOut(supabase: SupabaseClient): Promise<AuthResult> {
   const { error } = await supabase.auth.signOut();
   return error ? mapError(error) : { ok: true };

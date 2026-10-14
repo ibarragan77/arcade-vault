@@ -9,6 +9,7 @@ import {
   validatePassword,
   validateUsername,
 } from "@/lib/auth";
+import OAuthButtons from "@/components/auth/OAuthButtons";
 import { createClient } from "@/lib/supabase/client";
 
 type FieldErrors = Partial<
@@ -183,6 +184,9 @@ export default function RegistroPage() {
                 {loading ? "CREANDO CUENTA…" : "CREAR CUENTA"}
               </button>
             </form>
+
+            <div className="auth-divider">O REGÍSTRATE CON</div>
+            <OAuthButtons />
 
             <div className="auth-links">
               <span>

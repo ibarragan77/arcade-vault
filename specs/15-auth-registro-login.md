@@ -1,6 +1,6 @@
 # SPEC 15 — Registro, inicio de sesión y autenticación real con Supabase Auth
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 04, SPEC 06
 > **Date:** 2026-10-14
 > **Objective:** Reemplazar la sesión simulada de `localStorage` por autenticación real con Supabase Auth (correo + contraseña, confirmación por correo y recuperación de contraseña), con pantallas `/login`, `/registro` y `/perfil`, un `username` único por jugador y puntajes vinculados al usuario autenticado.
