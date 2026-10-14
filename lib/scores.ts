@@ -16,11 +16,16 @@ function formatDate(iso: string): string {
 
 export async function saveScore(
   supabase: SupabaseClient,
-  entry: { game: string; score: number; name: string },
+  entry: { game: string; score: number; name: string; userId?: string },
 ): Promise<void> {
-  const { error } = await supabase
-    .from("scores")
-    .insert({ game_id: entry.game, score: entry.score, name: entry.name });
+  // Sin userId el puntaje es de invitado (user_id nulo); la política RLS exige que, si viene,
+  // coincida con auth.uid().
+  const { error } = await supabase.from("scores").insert({
+    game_id: entry.game,
+    score: entry.score,
+    name: entry.name,
+    user_id: entry.userId ?? null,
+  });
 
   if (error) throw error;
 }
