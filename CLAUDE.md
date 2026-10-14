@@ -46,7 +46,7 @@ Invócalos con lenguaje natural ("qué juego agregamos después", "revisa los sk
 
 ## Arquitectura
 
-- **Next.js 16.3.1 / React 19**, solo App Router (directorio `app/`), TypeScript, Tailwind CSS v4 (vía `@tailwindcss/postcss`, configurado en `app/globals.css`, sin archivo `tailwind.config.*`).
+- **Next.js 16.4.1 / React 19**, solo App Router (directorio `app/`), TypeScript, Tailwind CSS v4 (vía `@tailwindcss/postcss`, configurado en `app/globals.css`, sin archivo `tailwind.config.*`).
 - El alias de ruta `@/*` apunta a la raíz del repo (`tsconfig.json`).
 - **Esta versión de Next.js tiene cambios incompatibles respecto a los datos de entrenamiento.** Antes de escribir código de rutas o de obtención de datos, consulta `node_modules/next/dist/docs/` (`01-app/` para App Router) para ver la API vigente — no asumas que aplican las convenciones antiguas de Next.js.
 - `next.config.ts` define los headers de seguridad para todas las rutas (`nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, HSTS; sin CSP — spec 17). Si agregas contenido en iframes o sensores del dispositivo, revisa esos headers.

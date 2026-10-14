@@ -30,7 +30,7 @@ headers: async () => [{ source: "/(.*)", headers: securityHeaders }];
 - [x] Headers de seguridad confirmados con `curl -I` en localhost:3000 (2026-10-14)
 - [x] `/auth/confirm` y `/auth/callback`: destinos fijos, sin open redirect (2026-10-14)
 - [x] `/perfil` usa `getUser()`; sin XSS (`dangerouslySetInnerHTML`/`innerHTML`/`eval`), sin `target="_blank"`, `.env*` no versionado (2026-10-14)
-- [ ] `npm audit --omit=dev` limpio — FALLA: 1 crítica (`next`), 2 altas (`sharp`, `source-map-js`) (2026-10-14)
+- [x] `npm audit --omit=dev` limpio — `next` y `eslint-config-next` a 16.4.1, `sharp` y `source-map-js` vía `npm audit fix` (spec 18, 2026-10-14)
 - [ ] Privilegios de tabla mínimos para anon/authenticated — FALLA: tienen TRUNCATE/TRIGGER/REFERENCES (2026-10-14)
 
 ## Por el lado de Supabase:
