@@ -22,10 +22,25 @@ export function validateEmail(email: string): string | null {
     : "Ingresa un correo electrónico válido.";
 }
 
+// Mismo conjunto de símbolos que valida Supabase (Password requirements del Dashboard).
+const PASSWORD_SYMBOLS = "!@#$%^&*()_+-=[]{};'\\:\"|<>?,./`~";
+
+export const PASSWORD_HINT = `Mínimo ${PASSWORD_MIN} caracteres, con minúscula, mayúscula, número y símbolo (${PASSWORD_SYMBOLS}).`;
+
 export function validatePassword(password: string): string | null {
-  return password.length >= PASSWORD_MIN
-    ? null
-    : `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres.`;
+  if (password.length < PASSWORD_MIN) {
+    return `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres.`;
+  }
+  const hasSymbol = [...password].some((c) => PASSWORD_SYMBOLS.includes(c));
+  if (
+    !/[a-z]/.test(password) ||
+    !/[A-Z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !hasSymbol
+  ) {
+    return "La contraseña debe incluir una minúscula, una mayúscula, un número y un símbolo.";
+  }
+  return null;
 }
 
 // Nunca se muestra el texto crudo de Supabase: se traduce por `code` y, si no se
@@ -38,7 +53,7 @@ function mapError(error: AuthError): AuthResult {
       "Aún no confirmaste tu correo. Revisa tu bandeja de entrada.",
     user_already_exists: "Ya existe una cuenta con ese correo.",
     email_exists: "Ya existe una cuenta con ese correo.",
-    weak_password: `La contraseña es demasiado débil. Usa al menos ${PASSWORD_MIN} caracteres.`,
+    weak_password: `La contraseña es demasiado débil. ${PASSWORD_HINT}`,
     same_password: "La nueva contraseña debe ser distinta de la anterior.",
     over_email_send_rate_limit:
       "Se enviaron demasiados correos. Espera unos minutos e inténtalo de nuevo.",

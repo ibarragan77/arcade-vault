@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PASSWORD_MIN, updatePassword, validatePassword } from "@/lib/auth";
+import { PASSWORD_HINT, updatePassword, validatePassword } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/client";
 
 type Access = "checking" | "granted" | "denied";
@@ -119,7 +119,7 @@ export default function RestablecerPage() {
                 </span>
               ) : (
                 <span className="hint" id="rst-password-msg">
-                  Mínimo {PASSWORD_MIN} caracteres.
+                  {PASSWORD_HINT}
                 </span>
               )}
             </div>

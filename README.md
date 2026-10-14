@@ -43,6 +43,21 @@ Notas:
 - Quien entra por primera vez recibe un `username` autogenerado (hasta 6 caracteres del nombre del proveedor + 4 dígitos); lo crea el trigger `handle_new_user`. Por ahora no se puede cambiar.
 - Si el correo del proveedor ya tiene una cuenta, Supabase vincula la identidad a esa cuenta (conserva `username` y puntajes). Por eso solo se deben habilitar proveedores que entreguen correos verificados.
 
+## Seguridad
+
+Checklist en `references/security/security-checklist.md` (SPEC 17). Lo que vive fuera del código:
+
+- **RLS:** habilitado en `games`, `scores` y `profiles`. Lectura pública; `scores` solo acepta `INSERT` de invitados (`user_id` nulo) o a nombre propio (`auth.uid()`).
+- **Función `public.rls_auto_enable()`:** se revocó `EXECUTE` a `public`, `anon` y `authenticated` (migración `revoke_execute_rls_auto_enable`). El event trigger `ensure_rls` sigue activando RLS en tablas nuevas.
+- **Requisitos de contraseña (Dashboard → Authentication → Sign In / Providers → Email):** _Minimum password length_ = 8 y _Password requirements_ = "Lowercase, uppercase letters, digits and symbols". El cliente (`validatePassword` en `lib/auth.ts`) aplica la misma regla, con la misma lista de símbolos que Supabase.
+- **Headers de seguridad:** definidos en `next.config.ts` para todas las rutas (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security`). No hay `Content-Security-Policy`.
+- **Protección de rutas:** `proxy.ts` solo exige sesión en `/perfil`; el resto es público para que el invitado pueda jugar.
+
+Pendiente por limitaciones del plan Free de Supabase (la alerta `auth_leaked_password_protection` de `get_advisors` seguirá apareciendo):
+
+- **Leaked password protection** (_Prevent use of leaked passwords_): requiere plan Pro. Activarla al migrar de plan.
+- **Límite de signups por IP:** el proyecto no ofrece _Authentication → Rate Limits → Sign-ups and sign-ins_. Valor recomendado si estuviera disponible: **10 peticiones cada 5 minutos por IP** (el valor por defecto de Supabase es 30). **No está aplicado.**
+
 ## Commands
 
 - `npm run dev` — start the dev server (Turbopack, via `next dev`)
