@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  PASSWORD_MIN,
+  PASSWORD_HINT,
   signUp,
   validateEmail,
   validatePassword,
@@ -158,7 +158,7 @@ export default function RegistroPage() {
                   aria-invalid={!!errors.password}
                   aria-describedby="reg-password-msg"
                 />,
-                `Mínimo ${PASSWORD_MIN} caracteres.`,
+                PASSWORD_HINT,
               )}
               {field(
                 "confirm",
