@@ -1,6 +1,6 @@
 # SPEC 18 — Actualizar Next.js y dependencias vulnerables
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 17
 > **Date:** 2026-10-14
 > **Objective:** Llevar `npm audit --omit=dev` a 0 vulnerabilidades actualizando `next` (y `eslint-config-next`) a la última 16.x estable y corrigiendo `sharp` y `source-map-js`, sin cambiar el comportamiento de la app.
